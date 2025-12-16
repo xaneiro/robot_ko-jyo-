@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ガチャ</title>
+  <style>
+    :root { --bg:#0b0f17; --card:#121a28; --text:#e8eefc; --muted:#9fb0d0; }
+    body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 18px; margin: 0 0 12px; color: var(--muted); font-weight: 600; }
+    .panel { background: var(--card); border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 18px; }
+    .row { display:flex; gap:12px; flex-wrap: wrap; align-items: center; }
+    button {
+      appearance:none; border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06); color: var(--text);
+      padding: 10px 14px; border-radius: 12px; cursor:pointer; font-weight: 600;
+    }
+    button:hover { background: rgba(255,255,255,.09); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .result {
+      margin-top: 14px; display:grid; grid-template-columns: 1fr; gap: 10px;
+    }
+    .card {
+      padding: 14px; border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.03);
+    }
+    .tag { display:inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight:700; letter-spacing:.04em; }
+    .item { font-size: 22px; font-weight: 800; margin: 10px 0 6px; }
+    .desc { color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .meta { margin-top: 10px; display:flex; gap:12px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+    .history { margin-top: 16px; }
+    .history h2 { font-size: 13px; margin: 0 0 10px; color: var(--muted); font-weight: 700; }
+    .list { display:grid; gap:8px; }
+    .small { font-size: 12px; color: var(--muted); }
+    .sep { opacity:.25; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>URLで飛べる…ガチャ…</h1>
+
+    <div class="panel">
+      <div class="row">
+        <button id="drawBtn">引く…</button>
+        <button id="tenBtn">10連…</button>
+        <button id="resetBtn">履歴リセット…</button>
+        <span class="small"><span id="count">0</span>回…</span>
+      </div>
+
+      <div class="result" id="result"></div>
+
+      <div class="history">
+        <h2>履歴…</h2>
+        <div class="list" id="history"></div>
+      </div>
+    </div>
+
+    <p class="small" style="margin-top:12px">
+      これはクライアントだけで動く…だから改ざん耐性は弱い…必要なら後でサーバ側も足せる…
+    </p>
+  </div>
+
+<script>
+  // ここを好きに変える…
+  const POOL = {
+    SSR: [
+      { name: "黒い鍵", desc: "開けると戻れないやつ…" },
+      { name: "無音の星図", desc: "読めないけど…なぜか懐かしい…" },
+    ],
+    SR: [
+      { name: "反転コイン", desc: "表でも裏でもない…" },
+      { name: "遠い呼び鈴", desc: "鳴らすと遅れて返事が来る…" },
+      { name: "砂のメモリ", desc: "触ると少しだけ忘れる…" },
+    ],
+    R: [
+      { name: "紙の盾", desc: "気分だけ守られる…" },
+      { name: "薄いランタン", desc: "暗さが増すタイプ…" },
+      { name: "よくある石", desc: "ほんとによくある…" },
+      { name: "折れた鉛筆", desc: "まだ書ける…" },
+      { name: "空の封筒", desc: "宛名だけある…" },
+    ],
+  };
+
+  // 排出率…合計100にしとく…
+  const RATE = [
+    { rarity: "SSR", weight: 5 },
+    { rarity: "SR",  weight: 25 },
+    { rarity: "R",   weight: 70 },
+  ];
+
+  // cryptoで乱数…
+  const randInt = (max) => {
+    const a = new Uint32Array(1);
+    crypto.getRandomValues(a);
+    return a[0] % max;
+  };
+
+  const pickWeighted = () => {
+    const total = RATE.reduce((s, x) => s + x.weight, 0);
+    let r = randInt(total);
+    for (const x of RATE) {
+      if (r < x.weight) return x.rarity;
+      r -= x.weight;
+    }
+    return RATE[RATE.length - 1].rarity;
+  };
+
+  const pickFromPool = (rarity) => {
+    const list = POOL[rarity];
+    return list[randInt(list.length)];
+  };
+
+  const tagStyle = (rarity) => {
+    if (rarity === "SSR") return "background: rgba(255,215,0,.14); border:1px solid rgba(255,215,0,.35); color:#ffef9c";
+    if (rarity === "SR")  return "background: rgba(120,200,255,.12); border:1px solid rgba(120,200,255,.32); color:#cfefff";
+    return "background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); color:#e8eefc";
+  };
+
+  const $ = (id) => document.getElementById(id);
+
+  const LS_KEY = "gacha_history_v1";
+  const LS_COUNT = "gacha_count_v1";
+
+  const loadHistory = () => {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); }
+    catch { return []; }
+  };
+
+  const saveHistory = (h) => localStorage.setItem(LS_KEY, JSON.stringify(h));
+  const loadCount = () => Number(localStorage.getItem(LS_COUNT) || "0");
+  const saveCount = (n) => localStorage.setItem(LS_COUNT, String(n));
+
+  const render = () => {
+    const hist = loadHistory();
+    const cnt = loadCount();
+    $("count").textContent = cnt;
+
+    $("history").innerHTML = hist.slice(0, 20).map(x => `
+      <div class="card">
+        <span class="tag" style="${tagStyle(x.rarity)}">${x.rarity}</span>
+        <span class="sep">　</span>
+        <span style="font-weight:800">${escapeHtml(x.name)}</span>
+        <div class="small">${new Date(x.at).toLocaleString()}</div>
+      </div>
+    `).join("") || `<div class="small">まだない…</div>`;
+  };
+
+  const escapeHtml = (s) =>
+    s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+
+  const drawOnce = () => {
+    const rarity = pickWeighted();
+    const item = pickFromPool(rarity);
+    const at = Date.now();
+
+    const hist = loadHistory();
+    hist.unshift({ rarity, ...item, at });
+    saveHistory(hist);
+
+    const cnt = loadCount() + 1;
+    saveCount(cnt);
+
+    $("result").innerHTML = `
+      <div class="card">
+        <span class="tag" style="${tagStyle(rarity)}">${rarity}</span>
+        <div class="item">${escapeHtml(item.name)}</div>
+        <div class="desc">${escapeHtml(item.desc)}</div>
+        <div class="meta">
+          <span>回数… ${cnt}</span>
+          <span>時刻… ${new Date(at).toLocaleString()}</span>
+        </div>
+      </div>
+    `;
+
+    render();
+  };
+
+  const drawTen = () => {
+    const results = [];
+    for (let i = 0; i < 10; i++) {
+      const rarity = pickWeighted();
+      const item = pickFromPool(rarity);
+      results.push({ rarity, ...item, at: Date.now() + i });
+    }
+
+    const hist = loadHistory();
+    saveHistory([...results.reverse(), ...hist]); // 表示は引いた順…保存は先頭優先…
+    const cnt = loadCount() + 10;
+    saveCount(cnt);
+
+    $("result").innerHTML = results.map(x => `
+      <div class="card">
+        <span class="tag" style="${tagStyle(x.rarity)}">${x.rarity}</span>
+        <div class="item">${escapeHtml(x.name)}</div>
+        <div class="desc">${escapeHtml(x.desc)}</div>
+      </div>
+    `).join("");
+
+    render();
+  };
+
+  $("drawBtn").addEventListener("click", drawOnce);
+  $("tenBtn").addEventListener("click", drawTen);
+  $("resetBtn").addEventListener("click", () => {
+    localStorage.removeItem(LS_KEY);
+    localStorage.removeItem(LS_COUNT);
+    $("result").innerHTML = "";
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>
