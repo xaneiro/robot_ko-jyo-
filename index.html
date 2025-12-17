@@ -5,27 +5,34 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>ロボットコージョー ガチャ</title>
   <style>
-    :root { --bg:#0b0f17; --card:#121a28; --text:#e8eefc; --muted:#9fb0d0; }
-    body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
-    .wrap { max-width: 960px; margin: 0 auto; padding: 24px; }
-    h1 { font-size: 18px; margin: 0 0 12px; color: var(--muted); font-weight: 600; }
-    .panel { background: var(--card); border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 18px; }
+    /* 明るい工場風の配色 */
+    :root {
+      --bg:#e9eef5; --card:#f7fafc; --text:#1f2733; --muted:#5c6a7e;
+      --accent:#ffb100; --line:#c9d4e3; --panel:#edf2f8;
+    }
+    body { margin:0; font-family: "Segoe UI", "Noto Sans JP", system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 28px; }
+    h1 { font-size: 20px; margin: 0 0 14px; color: var(--text); font-weight: 700; letter-spacing:.02em; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: 0 8px 24px rgba(0,0,0,.04); }
     .row { display:flex; gap:12px; flex-wrap: wrap; align-items: center; }
     button {
-      appearance:none; border: 1px solid rgba(255,255,255,.14);
-      background: rgba(255,255,255,.06); color: var(--text);
-      padding: 10px 14px; border-radius: 12px; cursor:pointer; font-weight: 600;
+      appearance:none; border: 1px solid var(--line);
+      background: linear-gradient(120deg, #fff7e1, #ffe0a3);
+      color: #7b5200; padding: 10px 14px; border-radius: 10px; cursor:pointer; font-weight: 700;
+      box-shadow: inset 0 1px 0 #fff5d6, 0 3px 12px rgba(0,0,0,.08);
     }
-    button:hover { background: rgba(255,255,255,.09); }
-    button:disabled { opacity:.5; cursor:not-allowed; }
-    .result { margin-top: 14px; display:grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-    .card { padding: 14px; border-radius: 16px; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.03); }
+    button:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 #fff5d6, 0 4px 14px rgba(0,0,0,.12); }
+    button:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+    .result { margin-top: 14px; display:grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+    .card { padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); transition: box-shadow .15s ease, transform .15s ease; }
     .card.with-image { display:grid; grid-template-columns: 1fr; gap:12px; align-items: stretch; }
     @media (min-width: 720px) { .card.with-image { grid-template-columns: 240px 1fr; } }
+    .card.got { background:#fff; border-color:#d8e5f5; box-shadow: 0 8px 20px rgba(0,0,0,.06); }
+    .card.locked { background: #f1f4f8; opacity: .95; }
     .thumb {
       border-radius: 12px; overflow: hidden;
-      background: linear-gradient(145deg, rgba(255,255,255,.06), rgba(255,255,255,.01));
-      border: 1px solid rgba(255,255,255,.10);
+      background: #e4ebf5;
+      border: 1px dashed var(--line);
       display:flex; align-items:center; justify-content:center;
       padding: 6px;
     }
@@ -33,24 +40,21 @@
     .thumb.small { width: 76px; height: 76px; padding: 4px; }
     .thumb.small img { max-height: 72px; }
     .thumb-empty { display:flex; align-items:center; justify-content:center; color: var(--muted); font-size: 12px; }
-    .item { font-size: 18px; font-weight: 800; margin: 6px 0 6px; }
+    .item { font-size: 18px; font-weight: 800; margin: 6px 0 6px; letter-spacing:.01em; }
     .desc { color: var(--muted); font-size: 13px; line-height: 1.6; }
     .meta { margin-top: 8px; display:flex; gap:12px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
     .history { margin-top: 20px; }
-    .history h2 { font-size: 13px; margin: 0 0 10px; color: var(--muted); font-weight: 700; }
+    .history h2 { font-size: 13px; margin: 0 0 10px; color: var(--muted); font-weight: 800; letter-spacing:.05em; text-transform: uppercase; }
     .list { display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
     .history-row { display:flex; gap:10px; align-items:center; }
     .small { font-size: 12px; color: var(--muted); }
-    .sep { opacity:.25; }
     .badge { display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing:.03em; }
-    .badge.got { background: rgba(120,200,255,.16); border:1px solid rgba(120,200,255,.32); color:#d5edff; }
-    .badge.locked { background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.16); color:#b7c3db; }
-    .card.locked { opacity:.55; }
-    .card.got { border-color: rgba(120,200,255,.35); box-shadow: 0 0 0 1px rgba(120,200,255,.12); }
-    .actions { margin-top: 6px; display:flex; gap:10px; flex-wrap: wrap; font-size: 12px; }
-    .actions a { color: #9fd3ff; text-decoration: none; border:1px solid rgba(120,200,255,.35); padding:4px 8px; border-radius:8px; }
-    .actions a:hover { background: rgba(120,200,255,.12); }
-    .stats { color: var(--muted); font-size: 12px; }
+    .badge.got { background: #ffe8b8; border:1px solid #ffc24a; color:#7b5200; }
+    .badge.locked { background: #e0e6ef; border:1px solid #c9d4e3; color:#6b7689; }
+    .actions { margin-top: 8px; display:flex; gap:10px; flex-wrap: wrap; font-size: 12px; }
+    .actions a { color: #0f6bdc; text-decoration: none; border:1px solid #7ac0ff; padding:6px 10px; border-radius:8px; background:#eef6ff; font-weight:700; }
+    .actions a:hover { background: #d9ecff; }
+    .stats { color: var(--muted); font-size: 12px; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -216,10 +220,10 @@
     document.getElementById("left").textContent = remaining;
     document.getElementById("total").textContent = ITEMS.length;
 
-    // 実績表示
     document.getElementById("history").innerHTML = ITEMS.map(item => {
       const gotAt = drawnMap[item.name];
       const got = Boolean(gotAt);
+      const displayName = got ? item.name : "???";
       const badge = got ? `<span class="badge got">入手済</span>` : `<span class="badge locked">未入手</span>`;
       const meta = got ? `<div class="small">${new Date(gotAt).toLocaleString()}</div>` : "";
       const dl = got ? `<div class="actions"><a href="${escapeHtml(item.img)}" download>ダウンロード</a></div>` : "";
@@ -228,7 +232,7 @@
           <div class="history-row">
             ${imageBlock(item, "sm")}
             <div>
-              <div class="item" style="font-size:16px; margin:0 0 4px;">${escapeHtml(item.name)}</div>
+              <div class="item" style="font-size:16px; margin:0 0 4px;">${escapeHtml(displayName)}</div>
               ${badge}
               ${meta}
               ${dl}
@@ -258,7 +262,7 @@
     saveCount(cnt);
 
     document.getElementById("result").innerHTML = `
-      <div class="card with-image">
+      <div class="card with-image got">
         ${imageBlock(item)}
         <div>
           <div class="item">${escapeHtml(item.name)}</div>
