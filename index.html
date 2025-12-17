@@ -5,56 +5,179 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>ロボットコージョー ガチャ</title>
   <style>
-    /* 明るい工場風の配色 */
+    /* 電子機器のモニター風UI */
     :root {
-      --bg:#e9eef5; --card:#f7fafc; --text:#1f2733; --muted:#5c6a7e;
-      --accent:#ffb100; --line:#c9d4e3; --panel:#edf2f8;
+      --bg1:#0b0f18;
+      --bg2:#0f1a2b;
+      --card:#111b29;
+      --card-got:#f8fbff;
+      --card-locked:#000000;
+      --text:#eaf6ff;
+      --text-dark:#0b1a2c;
+      --muted:#7fa0c7;
+      --accent:#4de1ff;
     }
-    body { margin:0; font-family: "Segoe UI", "Noto Sans JP", system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); }
-    .wrap { max-width: 1040px; margin: 0 auto; padding: 28px; }
-    h1 { font-size: 20px; margin: 0 0 14px; color: var(--text); font-weight: 700; letter-spacing:.02em; }
-    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: 0 8px 24px rgba(0,0,0,.04); }
-    .row { display:flex; gap:12px; flex-wrap: wrap; align-items: center; }
-    button {
-      appearance:none; border: 1px solid var(--line);
-      background: linear-gradient(120deg, #fff7e1, #ffe0a3);
-      color: #7b5200; padding: 10px 14px; border-radius: 10px; cursor:pointer; font-weight: 700;
-      box-shadow: inset 0 1px 0 #fff5d6, 0 3px 12px rgba(0,0,0,.08);
+    body {
+      margin:0; font-family: "Yu Gothic UI", "Yu Gothic", "Meiryo", "Noto Sans JP", "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--text);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(0,0,0,0.05) 100%),
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 6px),
+        radial-gradient(circle at 20% 20%, rgba(77,225,255,0.10), transparent 35%),
+        radial-gradient(circle at 80% 30%, rgba(136,255,186,0.12), transparent 35%),
+        linear-gradient(135deg, var(--bg2), var(--bg1)),
+        linear-gradient(180deg, transparent 0%, #ffffff 100%);
+      background-color: #ffffff;
+      min-height:100vh;
     }
-    button:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 #fff5d6, 0 4px 14px rgba(0,0,0,.12); }
-    button:disabled { opacity:.45; cursor:not-allowed; transform:none; }
-    .result { margin-top: 14px; display:grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
-    .card { padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); transition: box-shadow .15s ease, transform .15s ease; }
-    .card.with-image { display:grid; grid-template-columns: 1fr; gap:12px; align-items: stretch; }
-    @media (min-width: 720px) { .card.with-image { grid-template-columns: 240px 1fr; } }
-    .card.got { background:#fff; border-color:#d8e5f5; box-shadow: 0 8px 20px rgba(0,0,0,.06); }
-    .card.locked { background: #f1f4f8; opacity: .95; }
-    .thumb {
-      border-radius: 12px; overflow: hidden;
-      background: #e4ebf5;
-      border: 1px dashed var(--line);
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 30px; }
+    h1 { font-size: 20px; margin: 0 0 16px; font-weight: 800; letter-spacing:.04em; color: var(--text); text-shadow: 0 0 14px rgba(77,225,255,.25); }
+    .panel {
+      background: linear-gradient(160deg, rgba(16,29,44,0.95), rgba(11,18,30,0.85));
+      border: 1px solid rgba(77,225,255,.25);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.05);
+      position: relative;
+      overflow:hidden;
+    }
+    .panel::before {
+      content:""; position:absolute; inset:0;
+      background: repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px);
+      mix-blend-mode: screen; opacity:.6; pointer-events:none;
+    }
+    .monitor-bar {
+      background: linear-gradient(180deg, rgba(15,26,43,0.9), rgba(9,14,23,0.9));
+      border: 1px solid rgba(77,225,255,.25);
+      border-radius: 12px;
+      padding: 12px 14px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05), 0 0 18px rgba(77,225,255,.15);
+      display:flex; gap:12px; flex-wrap: wrap; align-items:center;
+    }
+    .monitor-btn {
+      position: relative; padding: 11px 16px; border: 1px solid rgba(77,225,255,.45);
+      background: linear-gradient(180deg, rgba(77,225,255,.25), rgba(77,225,255,.10));
+      color: var(--text); font-weight: 800; letter-spacing:.05em; cursor:pointer;
+      border-radius: 10px;
+      box-shadow: 0 0 12px rgba(77,225,255,.35), inset 0 1px 0 rgba(255,255,255,.12);
+      text-transform: uppercase;
+      transition: transform .08s ease, box-shadow .08s ease;
+    }
+    .monitor-btn:hover { transform: translateY(-1px); box-shadow: 0 0 16px rgba(77,225,255,.5), inset 0 1px 0 rgba(255,255,255,.18); }
+    .monitor-btn:active { transform: translateY(0); box-shadow: 0 0 10px rgba(77,225,255,.4); }
+    .monitor-btn:disabled { opacity:.45; cursor:not-allowed; transform:none; box-shadow: 0 0 8px rgba(77,225,255,.2); }
+
+    /* モニター枠 */
+    .monitor-screen {
+      position: relative;
+      margin-top: 16px;
+      padding: 20px;
+      border: 14px solid rgba(77,225,255,.45);
+      border-radius: 26px;
+      background: linear-gradient(180deg, #4a5565, #1a2230);
+      box-shadow:
+        inset 0 3px 0 rgba(255,255,255,.2),
+        0 18px 40px rgba(0,0,0,.55),
+        0 0 32px rgba(77,225,255,.25);
+      overflow:hidden;
+    }
+    .screen-inner {
+      position: relative;
+      border-radius: 14px;
+      background: radial-gradient(circle at 20% 20%, rgba(77,225,255,.08), transparent 45%),
+                  radial-gradient(circle at 80% 30%, rgba(136,255,186,.06), transparent 45%),
+                  linear-gradient(180deg, rgba(12,20,31,.95), rgba(10,15,24,.96));
+      min-height: 420px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05), inset 0 0 0 2px rgba(0,0,0,.35);
+      overflow:hidden;
+    }
+    .screen-noise {
+      position:absolute; inset:0; pointer-events:none; mix-blend-mode: screen;
+      background-image:
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 3px),
+        radial-gradient(circle at 20% 30%, rgba(255,255,255,0.05), transparent 40%),
+        radial-gradient(circle at 80% 60%, rgba(255,255,255,0.04), transparent 45%);
+      opacity:.5;
+      animation: noiseScroll 1.8s linear infinite;
+    }
+    @keyframes noiseScroll {
+      0% { background-position: 0 0, 0 0, 0 0; }
+      100% { background-position: 0 40px, 0 12px, 0 -24px; }
+    }
+    .result {
+      position: relative;
+      z-index: 1;
       display:flex; align-items:center; justify-content:center;
-      padding: 6px;
+      min-height: 420px;
+      padding: 14px;
     }
-    .thumb img { width: 100%; height: auto; max-height: 360px; object-fit: contain; display:block; }
-    .thumb.small { width: 76px; height: 76px; padding: 4px; }
-    .thumb.small img { max-height: 72px; }
+    .card {
+      width: min(720px, 100%);
+      padding: 14px; border-radius: 12px; border: 1px solid rgba(77,225,255,.15);
+      background: var(--card);
+      box-shadow: 0 12px 28px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.04);
+      transition: box-shadow .15s ease, transform .15s ease;
+    }
+    .card.with-image { display:grid; grid-template-columns: 1fr; gap:12px; align-items: stretch; }
+    @media (min-width: 760px) { .card.with-image { grid-template-columns: 260px 1fr; } }
+    .card.got { background: var(--card-got); border-color: rgba(136,255,186,.35); box-shadow: 0 12px 30px rgba(0,0,0,.3); color: var(--text-dark); }
+    .card.locked { background: var(--card-locked); border-color: rgba(255,255,255,.06); color:#dfe5f0; box-shadow: 0 10px 24px rgba(0,0,0,.35); }
+    .thumb { border-radius: 10px; overflow: hidden; background: linear-gradient(145deg, #182330, #0f1824); border: 1px solid rgba(77,225,255,.18); display:flex; align-items:center; justify-content:center; padding: 6px; }
+    .card.got .thumb { background: #fff; border-color: rgba(0,0,0,.08); }
+    .card.locked .thumb { background: #000; border-color:#222835; color:#7fa0c7; }
+    .thumb img { width: 100%; height: auto; max-height: 380px; object-fit: contain; display:block; }
+    .thumb.small { width: 82px; height: 82px; padding: 5px; }
+    .thumb.small img { max-height: 76px; }
     .thumb-empty { display:flex; align-items:center; justify-content:center; color: var(--muted); font-size: 12px; }
-    .item { font-size: 18px; font-weight: 800; margin: 6px 0 6px; letter-spacing:.01em; }
+    .item { font-size: 18px; font-weight: 800; margin: 6px 0 6px; letter-spacing:.02em; }
+    .card.locked .item { color:#dfe5f0; }
     .desc { color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .card.locked .desc { color:#9aa6bb; }
     .meta { margin-top: 8px; display:flex; gap:12px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
-    .history { margin-top: 20px; }
-    .history h2 { font-size: 13px; margin: 0 0 10px; color: var(--muted); font-weight: 800; letter-spacing:.05em; text-transform: uppercase; }
+    .history { margin-top: 22px; position:relative; z-index:1; }
+    .history h2 { font-size: 13px; margin: 0 0 10px; color: var(--muted); font-weight: 800; letter-spacing:.08em; text-transform: uppercase; text-shadow: 0 0 10px rgba(77,225,255,.25); }
     .list { display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
     .history-row { display:flex; gap:10px; align-items:center; }
     .small { font-size: 12px; color: var(--muted); }
+    .card.locked .small { color:#97a4ba; }
     .badge { display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing:.03em; }
-    .badge.got { background: #ffe8b8; border:1px solid #ffc24a; color:#7b5200; }
-    .badge.locked { background: #e0e6ef; border:1px solid #c9d4e3; color:#6b7689; }
+    .badge.got { background: rgba(136,255,186,.18); border:1px solid rgba(136,255,186,.5); color:#0d4224; }
+    .badge.locked { background: rgba(77,225,255,.12); border:1px solid rgba(77,225,255,.35); color:#c9e8ff; }
     .actions { margin-top: 8px; display:flex; gap:10px; flex-wrap: wrap; font-size: 12px; }
-    .actions a { color: #0f6bdc; text-decoration: none; border:1px solid #7ac0ff; padding:6px 10px; border-radius:8px; background:#eef6ff; font-weight:700; }
-    .actions a:hover { background: #d9ecff; }
-    .stats { color: var(--muted); font-size: 12px; font-weight: 600; }
+    .actions a,
+    .actions button {
+      color: #0f6bdc; text-decoration: none; border:1px solid #7ac0ff; padding:6px 10px; border-radius:8px; background:#eef6ff; font-weight:700; box-shadow: inset 0 1px 0 #fff; cursor:pointer;
+    }
+    .actions a:hover, .actions button:hover { background: #d9ecff; }
+    .stats { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing:.02em; text-shadow: 0 0 8px rgba(77,225,255,.2); }
+    /* Draw animation */
+    @keyframes drawPulse {
+      0% { transform: scale(0.98); box-shadow: 0 0 0 0 rgba(77,225,255,.5); }
+      40% { transform: scale(1.01); box-shadow: 0 0 0 12px rgba(77,225,255,.0); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(77,225,255,.0); }
+    }
+    .draw-anim { animation: drawPulse .85s ease; }
+
+    /* 拡大モーダル */
+    .modal {
+      position: fixed; inset:0; background: rgba(0,0,0,0.6);
+      display: none; align-items: center; justify-content: center;
+      z-index: 999;
+    }
+    .modal.show { display:flex; }
+    .modal-content {
+      max-width: min(90vw, 900px);
+      max-height: min(90vh, 900px);
+      background: #0b0f18;
+      border: 2px solid rgba(77,225,255,.4);
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 16px 40px rgba(0,0,0,.6), 0 0 24px rgba(77,225,255,.25);
+    }
+    .modal-content img {
+      width: 100%; height: 100%; object-fit: contain; display:block;
+      background: #fff;
+    }
   </style>
 </head>
 <body>
@@ -62,14 +185,18 @@
     <h1>ロボットコージョー ガチャ</h1>
 
     <div class="panel">
-      <div class="row">
-        <button id="drawBtn">引く</button>
-        <button id="resetBtn">履歴リセット</button>
+      <div class="monitor-bar">
+        <button class="monitor-btn" id="drawBtn">引く</button>
         <span class="stats">引いた数: <span id="count">0</span> / <span id="total">0</span></span>
         <span class="stats">残り: <span id="left">0</span></span>
       </div>
 
-      <div class="result" id="result"></div>
+      <div class="monitor-screen">
+        <div class="screen-inner">
+          <div class="screen-noise"></div>
+          <div class="result" id="result"></div>
+        </div>
+      </div>
 
       <div class="history">
         <h2>実績（図鑑）</h2>
@@ -81,102 +208,22 @@
       これはクライアントだけで動く簡易ガチャです。全て引くと終了します。画像は入手済みカードからダウンロードできます。
     </p>
   </div>
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <img id="modalImg" src="" alt="">
+    </div>
+  </div>
 
 <script>
-  const FILES = [
-    "Wide Adachi Walking.png",
-    "YO! SAY夏が胸を刺激する足立.png",
-    "────という事なんですが…….png",
-    "「今日は一日雨ですね」.png",
-    "『とりま聞こう？』.png",
-    "あ…あの奇天烈な動き…！.png",
-    "ああいあうあえあおあんいいういえいおいんううえうおうんええおえんおおんん.wav.png",
-    "あいたたた….png",
-    "あなた.png",
-    "あらららら….png",
-    "あれれ.png",
-    "あれれれ….png",
-    "あれ？さっきまでここに…どこ行った？.png",
-    "いくぞ～.png",
-    "うわっ！.png",
-    "うんちつんつん足立.png",
-    "こっちの方がいいかな.png",
-    "これかぁ～？.png",
-    "これか？.png",
-    "これもいいなぁ.png",
-    "さし.png",
-    "しゃがみ.png",
-    "そいやっそいやっ.png",
-    "そこそこ遠…トホホ.png",
-    "そこどこ？.png",
-    "どっせいどっせい.png",
-    "ぬき.png",
-    "ばいばーい足立.png",
-    "ふーん…ワクワク….png",
-    "ぽっぴぽっぴぽっぽっぴっぽー右足立.png",
-    "ぽっぴぽっぴぽっぽっぴっぽー左足立.png",
-    "わたしにも血液はあります.png",
-    "アン＝ダン＝チ＝レイ.png",
-    "イェーイ足立.png",
-    "サボテンダー足立.png",
-    "スパイダーレイ.png",
-    "スピニングバードキック！.png",
-    "スンッ….png",
-    "セクシー足立.png",
-    "ニコーー.png",
-    "バッター足立.png",
-    "パーティションはないない足立.png",
-    "フィラメント残量切れで途中までしか出力されなかった個体.png",
-    "ホッ！ハッ！ヤッ！.png",
-    "メカニカルガール足立.png",
-    "モデルさん足立.png",
-    "ヨガフロート足立.png",
-    "ライトニング・ボルト足立.png",
-    "ロケット足立.png",
-    "ワクワク.png",
-    "充電中足立.png",
-    "別に食べれないことないけどさ.png",
-    "君の幸運を祈る.png",
-    "固定ミスでずれて出力された個体.png",
-    "変わった人間もいるんですね.png",
-    "外出た瞬間終わった足立.png",
-    "岐阜の足立.png",
-    "幕引きだ！.png",
-    "引きこもり絶対ジャスティス足立.png",
-    "待ち足立.png",
-    "日進月歩遭難中.png",
-    "朝まで寝よーーーーーーーーっと！！.png",
-    "歌う足立.png",
-    "波動拳！.png",
-    "畳み掛ける！.png",
-    "目新しい音探して三千里.png",
-    "空N足立.png",
-    "立ち強p足立.png",
-    "管理・処理室.png",
-    "素材テストで出力された個体.png",
-    "美味しくなーれ！.png",
-    "荒ぶる鷹の足立.png",
-    "走り足立1.png",
-    "走り足立2.png",
-    "走り足立3.png",
-    "走り足立4.png",
-    "足(右).png",
-    "足(左).png",
-    "足立はダンスにハマってる？.png",
-    "首狩り族右足立.png",
-    "首狩り族左足立.png",
-    "鳴り止まないこの音楽を…….png",
-    "ﾚｲﾀﾞﾖｰ.png",
-  ];
+  const FILES = ["Wide Adachi Walking.png","YO! SAY夏が胸を刺激する足立.png","────という事なんですが…….png","「今日は一日雨ですね」.png","『とりま聞こう？』.png","あ…あの奇天烈な動き…！.png","ああいあうあえあおあんいいういえいおいんううえうおうんええおえんおおんん.wav.png","あいたたた….png","あなた.png","あらららら….png","あれれ.png","あれれれ….png","あれ？さっきまでここに…どこ行った？.png","いくぞ～.png","うわっ！.png","うんちつんつん足立.png","こっちの方がいいかな.png","これかぁ～？.png","これか？.png","これもいいなぁ.png","さし.png","しゃがみ.png","そいやっそいやっ.png","そこそこ遠…トホホ.png","そこどこ？.png","どっせいどっせい.png","ぬき.png","ばいばーい足立.png","ふーん…ワクワク….png","ぽっぴぽっぴぽっぽっぴっぽー右足立.png","ぽっぴぽっぴぽっぽっぴっぽー左足立.png","わたしにも血液はあります.png","アン＝ダン＝チ＝レイ.png","イェーイ足立.png","サボテンダー足立.png","スパイダーレイ.png","スピニングバードキック！.png","スンッ….png","セクシー足立.png","ニコーー.png","バッター足立.png","パーティションはないない足立.png","フィラメント残量切れで途中までしか出力されなかった個体.png","ホッ！ハッ！ヤッ！.png","メカニカルガール足立.png","モデルさん足立.png","ヨガフロート足立.png","ライトニング・ボルト足立.png","ロケット足立.png","ワクワク.png","充電中足立.png","別に食べれないことないけどさ.png","君の幸運を祈る.png","固定ミスでずれて出力された個体.png","変わった人間もいるんですね.png","外出た瞬間終わった足立.png","岐阜の足立.png","幕引きだ！.png","引きこもり絶対ジャスティス足立.png","待ち足立.png","日進月歩遭難中.png","朝まで寝よーーーーーーーーっと！！.png","歌う足立.png","波動拳！.png","畳み掛ける！.png","目新しい音探して三千里.png","空N足立.png","立ち強p足立.png","管理・処理室.png","素材テストで出力された個体.png","美味しくなーれ！.png","荒ぶる鷹の足立.png","走り足立1.png","走り足立2.png","走り足立3.png","走り足立4.png","足(右).png","足(左).png","足立はダンスにハマってる？.png","首狩り族右足立.png","首狩り族左足立.png","鳴り止まないこの音楽を…….png","ﾚｲﾀﾞﾖｰ.png" ];
 
-  const ITEMS = FILES.map((file) => ({
-    name: file.replace(/\.png$/i, ""),
-    desc: "",
-    img: "images/" + file,
-  }));
+  const ITEMS = FILES.map(file => ({ name: file.replace(/\.png$/i, ""), desc: "", img: "images/" + file }));
 
   const LS_DRAWN = "gacha_drawn_map_v1";
   const LS_COUNT = "gacha_count_v3";
+  // 開くたび履歴をクリア
+  localStorage.removeItem(LS_DRAWN);
+  localStorage.removeItem(LS_COUNT);
 
   const loadDrawn = () => {
     try { return JSON.parse(localStorage.getItem(LS_DRAWN) || "{}"); }
@@ -199,17 +246,19 @@
     return available[randInt(available.length)];
   };
 
-  const escapeHtml = (s) =>
-    s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  const escapeHtml = (s = "") => s
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 
   const imageBlock = (item, size = "lg") => {
     if (!item || !item.img) return "";
     const cls = size === "sm" ? "thumb small" : "thumb";
     const src = escapeHtml(item.img);
     const alt = escapeHtml(item.name || "item image");
-    return `<div class="${cls}">
-      <img src="${src}" alt="${alt}" loading="lazy" onerror="this.remove(); this.parentElement.classList.add('thumb-empty'); this.parentElement.textContent='no image';" />
-    </div>`;
+    return `<div class="${cls}"><img src="${src}" alt="${alt}" loading="lazy"></div>`;
   };
 
   const render = () => {
@@ -225,17 +274,16 @@
       const got = Boolean(gotAt);
       const displayName = got ? item.name : "???";
       const badge = got ? `<span class="badge got">入手済</span>` : `<span class="badge locked">未入手</span>`;
-      const meta = got ? `<div class="small">${new Date(gotAt).toLocaleString()}</div>` : "";
-      const dl = got ? `<div class="actions"><a href="${escapeHtml(item.img)}" download>ダウンロード</a></div>` : "";
+      const actions = got ? `<div class="actions"><button type="button" class="download-btn" data-img="${escapeHtml(item.img)}" data-name="${escapeHtml(item.name)}">ダウンロード</button></div>` : "";
+      const attr = got ? `data-img="${escapeHtml(item.img)}" data-name="${escapeHtml(item.name)}"` : "";
       return `
-        <div class="card ${got ? "got" : "locked"}">
+        <div class="card ${got ? "got" : "locked"} history-card" ${attr}>
           <div class="history-row">
             ${imageBlock(item, "sm")}
             <div>
               <div class="item" style="font-size:16px; margin:0 0 4px;">${escapeHtml(displayName)}</div>
-              ${badge}
-              ${meta}
-              ${dl}
+              <div class="small">${badge}</div>
+              ${actions}
             </div>
           </div>
         </div>
@@ -245,7 +293,9 @@
     const btn = document.getElementById("drawBtn");
     btn.disabled = remaining === 0;
     if (remaining === 0) {
-      document.getElementById("result").innerHTML = `<div class="small">コンプリートしました！履歴からダウンロードできます。</div>`;
+      document.getElementById("result").innerHTML = `<div class="card"><div class="small">コンプリートしました！履歴からダウンロードできます。</div></div>`;
+    } else if (!document.getElementById("result").children.length) {
+      document.getElementById("result").innerHTML = `<div class="small">引くボタンでガチャを回してください。</div>`;
     }
   };
 
@@ -261,32 +311,66 @@
     const cnt = loadCount() + 1;
     saveCount(cnt);
 
-    document.getElementById("result").innerHTML = `
-      <div class="card with-image got">
+    const resultEl = document.getElementById("result");
+    resultEl.innerHTML = 
+      `<div class="card with-image got">
         ${imageBlock(item)}
         <div>
           <div class="item">${escapeHtml(item.name)}</div>
           <div class="meta">
-            <span>回数… ${cnt}</span>
+            <span>回数… ${cnt} 回</span>
             <span>時刻… ${new Date(at).toLocaleString()}</span>
           </div>
-          <div class="actions"><a href="${escapeHtml(item.img)}" download>ダウンロード</a></div>
+          <div class="actions"><button type="button" class="download-btn" data-img="${escapeHtml(item.img)}" data-name="${escapeHtml(item.name)}">ダウンロード</button></div>
         </div>
-      </div>
-    `;
+      </div>`;
+    const card = resultEl.querySelector('.card');
+    if (card) {
+      card.classList.add('draw-anim');
+      setTimeout(() => card.classList.remove('draw-anim'), 900);
+    }
 
     render();
   };
 
   document.getElementById("drawBtn").addEventListener("click", drawOnce);
-  document.getElementById("resetBtn").addEventListener("click", () => {
-    localStorage.removeItem(LS_DRAWN);
-    localStorage.removeItem(LS_COUNT);
-    document.getElementById("result").innerHTML = "";
-    render();
+
+  // 拡大表示
+  const modal = document.getElementById("modal");
+  const modalImg = document.getElementById("modalImg");
+  modal.addEventListener("click", () => {
+    modal.classList.remove("show");
+    modalImg.src = "";
+  });
+  document.getElementById("history").addEventListener("click", (e) => {
+    const card = e.target.closest(".history-card");
+    if (!card) return;
+    const img = card.getAttribute("data-img");
+    if (!img) return;
+    modalImg.src = img;
+    modal.classList.add("show");
+  });
+
+  // ダウンロードボタン（履歴/結果共通）
+  const downloadFile = (url, name) => {
+    if (!url) return;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name || url.split("/").pop() || "download";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".download-btn");
+    if (!btn) return;
+    e.stopPropagation();
+    downloadFile(btn.getAttribute("data-img"), btn.getAttribute("data-name"));
   });
 
   render();
 </script>
 </body>
 </html>
+
+
