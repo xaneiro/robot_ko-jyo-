@@ -1,0 +1,224 @@
+const playSound = (id, volume = 0.7) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    try {
+      const clone = el.cloneNode(true);
+      clone.volume = volume;
+      clone.currentTime = 0;
+      clone.play();
+    } catch (_) {}
+  };
+  const imageBlock = (item, size = "lg") => {
+    if (!item || !item.img) return "";
+    const cls = size === "sm" ? "thumb small" : "thumb";
+    const src = escapeHtml(item.img);
+    const alt = escapeHtml(item.name || "item image");
+    return `<div class="${cls}"><img src="${src}" alt="${alt}" loading="lazy"></div>`;
+  };
+
+  const render = () => {
+    const drawnMap = loadDrawn();
+    const drawnCount = Object.keys(drawnMap).length;
+    const remaining = ITEMS.length - drawnCount;
+    document.getElementById("count").textContent = drawnCount;
+    document.getElementById("left").textContent = remaining;
+    document.getElementById("total").textContent = ITEMS.length;
+
+    document.getElementById("history").innerHTML = ITEMS.map(item => {
+      const gotAt = drawnMap[item.name];
+      const got = Boolean(gotAt);
+      const displayName = got ? item.name : "???";
+      const badge = got ? `<span class="badge got">入手済</span>` : `<span class="badge locked">未入手</span>`;
+      const actions = "";
+      const attr = got ? `data-img="${escapeHtml(item.img)}" data-name="${escapeHtml(item.name)}"` : "";
+      return `
+        <div class="card ${got ? "got" : "locked"} history-card" ${attr}>
+          <div class="history-row">
+            ${imageBlock(item, "sm")}
+            <div>
+              <div class="item" style="margin:0 0 4px;">${escapeHtml(displayName)}</div>
+              <div class="small">${badge}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    const btn = document.getElementById("drawBtn");
+    btn.disabled = remaining === 0;
+    if (remaining === 0) {
+      document.getElementById("result").innerHTML = `<div class="card"><div class="small">コンプリートしました！履歴からダウンロードできます。</div></div>`;
+    } else if (!document.getElementById("result").children.length) {
+      document.getElementById("result").innerHTML = `<div class="small">引くボタンでガチャを回してください。</div>`;
+    }
+  };
+
+    const scrollToHistory = (name) => {
+    const body = document.querySelector('.dex-body');
+    if (!body || !name) return;
+    const card = [...body.querySelectorAll('.history-card')].find(c => c.getAttribute('data-name') === name);
+    if (!card) return;
+    const bodyRect = body.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const top = cardRect.top - bodyRect.top + body.scrollTop - 8;
+    body.scrollTo({ top, behavior: 'smooth' });
+  };
+
+  const drawOnce = () => {
+    const drawnMap = loadDrawn();
+    const item = pickAvailable(drawnMap);
+    if (!item) { render(); return; }
+
+    const at = Date.now();
+    drawnMap[item.name] = at;
+    saveDrawn(drawnMap);
+
+    const cnt = loadCount() + 1;
+    saveCount(cnt);
+
+    const resultEl = document.getElementById("result");
+    resultEl.innerHTML = 
+      `<div class="card with-image got">
+        ${imageBlock(item)}
+        <div>
+          <div class="item">${escapeHtml(item.name)}</div>
+          <div class="meta">
+            <span>回数… ${cnt} 回</span>
+            <span>時刻… ${new Date(at).toLocaleString()}</span>
+          </div>
+          
+        </div>
+      </div>`;
+    const card = resultEl.querySelector('.card');
+    if (card) {
+      card.classList.add('draw-anim');
+      setTimeout(() => card.classList.remove('draw-anim'), 900);
+    }
+
+    render();
+    scrollToHistory(item.name);
+  };
+
+    document.getElementById("drawBtn").addEventListener("click", () => {
+    playSound("se6", 0.8);
+    drawOnce();
+  });
+
+  // 拡大表示
+  const modal = document.getElementById("modal");
+  const modalImg = document.getElementById("modalImg");
+  modal.addEventListener("click", () => {
+    modal.classList.remove("show");
+    modalImg.src = "";
+  });
+    const historyEl = document.getElementById("history");
+  let hoverCard = null;
+  historyEl.addEventListener("mouseover", (e) => {
+    const card = e.target.closest(".history-card");
+    if (!card || hoverCard === card) return;
+    hoverCard = card;
+    const got = card.classList.contains("got");
+    playSound(got ? "se1" : "se2", 0.65);
+  });
+  historyEl.addEventListener("mouseleave", () => { hoverCard = null; });
+  historyEl.addEventListener("click", (e) => {
+    const card = e.target.closest(".history-card");
+    if (!card) return;
+    const got = card.classList.contains("got");
+    if (got) {
+      playSound("sa4", 0.7);
+      const img = card.getAttribute("data-img");
+      if (!img) return;
+      modalImg.src = img;
+      modal.classList.add("show");
+    } else {
+      playSound("se5", 0.75);
+      card.classList.remove("shake");
+      void card.offsetWidth;
+      card.classList.add("shake");
+    }
+  });
+
+        
+
+  
+
+  // BGMループと音量・オンオフ
+  const bgm = document.getElementById("bgm");
+  const vol = document.getElementById("vol");
+  const bgmToggle = document.getElementById("bgmToggle");
+  let bgmOn = true;
+
+  const updateLabel = () => { if (bgmToggle) bgmToggle.textContent = bgmOn ? "BGM: ON" : "BGM: OFF"; };
+
+  const ensurePlay = async () => {
+    if (!bgm) return;
+    bgm.loop = true;
+    bgm.volume = Number(vol?.value || 0.4);
+    bgm.playbackRate = 1;
+    try { await bgm.play(); } catch (_) { /* autoplay ブロック時は無視 */ }
+  };
+
+  if (bgm) {
+    bgm.addEventListener("timeupdate", () => {
+      if (bgm.duration && bgm.currentTime > bgm.duration - 0.12) {
+        bgm.currentTime = 0;
+        bgm.play();
+      }
+    });
+    bgm.addEventListener("ended", () => { bgm.currentTime = 0; bgm.play(); });
+  }
+
+  vol?.addEventListener("input", () => { if (bgm) bgm.volume = Number(vol.value || 0.4); });
+  bgmToggle?.addEventListener("click", () => { bgmOn = !bgmOn; updateLabel(); if (!bgm) return; if (bgmOn) { ensurePlay(); } else { bgm.pause(); } });
+  document.addEventListener("click", () => ensurePlay(), { once:true });
+  updateLabel();
+  ensurePlay();
+
+  render();</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
