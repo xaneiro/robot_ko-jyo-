@@ -115,12 +115,18 @@
     .dex-monitor .dex-stats { position:absolute; right:14px; bottom:10px; }
     .tab-panel { display:none; }
     .tab-panel.active { display:block; }
+    .tab-panel#tab-owned { overflow: hidden; }
+    .dex-body.owned-no-scroll { overflow: hidden !important; }
+    .dex-body.owned-no-scroll::-webkit-scrollbar { display:none; }
     .count-badge { position:absolute; right:10px; bottom:8px; background: rgba(0,0,0,.65); color:#fff; font-size: 11px; padding: 4px 8px; border-radius: 999px; border:1px solid rgba(255,255,255,.18); box-shadow: 0 2px 6px rgba(0,0,0,.35); }
     .card.got .count-badge { background: rgba(24,50,70,.8); border-color: rgba(77,225,255,.35); }
     .card.locked .count-badge { background: rgba(0,0,0,.8); }
-    .owned-stack { position:relative; min-height: 360px; padding: 0 12px 18px; display:flex; align-items:flex-end; justify-content:flex-start; }
-        .owned-stack .owned-title { position:absolute; top:8px; left:20px; right:20px; height:28px; display:flex; align-items:center; color: var(--text); font-weight: 800; letter-spacing:.04em; text-shadow: 0 0 10px rgba(77,225,255,.25); }
-    .owned-stack .stack-area { position:relative; height:320px; width:100%; }
+            .owned-stack { position:relative; min-height: 360px; padding: 0 12px 18px; display:flex; align-items:flex-end; justify-content:flex-start; }
+    .owned-stack .owned-title { position:absolute; top:8px; left:20px; right:20px; height:28px; display:flex; align-items:center; color: var(--text); font-weight: 800; letter-spacing:.04em; text-shadow: 0 0 10px rgba(77,225,255,.25); }
+    .owned-stack .stack-area { position:relative; height:320px; width:100%; overflow-x:auto; overflow-y:hidden; padding:20px; scrollbar-width: thin; }
+    .owned-stack .stack-area::-webkit-scrollbar { height: 10px; }
+    .owned-stack .stack-area::-webkit-scrollbar-track { background: rgba(255,255,255,0.08); border-radius: 999px; }
+    .owned-stack .stack-area::-webkit-scrollbar-thumb { background: rgba(77,225,255,0.45); border-radius: 999px; }
     .owned-stack .stack-card { position:absolute; top:120px; left:20px; width:180px; height:220px; border-radius:12px; border:1px solid rgba(77,225,255,.18); background: #fff; box-shadow: 0 12px 24px rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; transition: transform .15s ease, box-shadow .15s ease; }
     .owned-stack .stack-card img { max-width:90%; max-height:90%; object-fit: contain; background:#fff; }
     .owned-stack .stack-card:hover { transform: translateY(-24px) scale(1.06); box-shadow: 0 18px 30px rgba(0,0,0,.45), 0 0 0 1px rgba(77,225,255,.25); z-index:9; }
@@ -240,7 +246,7 @@
   </div>
 
 <script>
-  const FILES = ["Wide Adachi Walking.png","YO! SAY夏が胸を刺激する足立.png","────という事なんですが…….png","「今日は一日雨ですね」。png","『とりま聞こう？』.png","あ…あの奇天烈な動き…！.png","ああいあうあえあおあんいいういえいおいんううえうおうんええおえんおおんん.wav.png","あいたたた….png","あなた.png","あらららら….png","あれれ.png","あれれれ….png","あれ？さっきまでここに…どこ行った？.png","いくぞ～.png","うわっ！.png","うんちつんつん足立.png","こっちの方がいいかな.png","これかぁ～？.png","これか？.png","これもいいなぁ.png","さし.png","しゃがみ.png","そいやっそいやっ.png","そこそこ遠…トホホ.png","そこどこ？.png","どっせいどっせい.png","ぬき.png","ばいばーい足立.png","ふーん…ワクワク….png","ぽっぴぽっぴぽっぽっぴっぽー右足立.png","ぽっぴぽっぴぽっぽっぴっぽー左足立.png","わたしにも血液はあります.png","アン＝ダン＝チ＝レイ.png","イェーイ足立.png","サボテンダー足立.png","スパイダーレイ.png","スピニングバードキック！.png","スンッ….png","セクシー足立.png","ニコーー.png","バッター足立.png","パーティションはないない足立.png","フィラメント残量切れで途中までしか出力されなかった個体.png","ホッ！ハッ！ヤッ！.png","メカニカルガール足立.png","モデルさん足立.png","ヨガフロート足立.png","ライトニング・ボルト足立.png","ロケット足立.png","ワクワク.png","充電中足立.png","別に食べれないことないけどさ.png","君の幸運を祈る.png","固定ミスでずれて出力された個体.png","変わった人間もいるんですね.png","外出た瞬間終わった足立.png","岐阜の足立.png","幕引きだ！.png","引きこもり絶対ジャスティス足立.png","待ち足立.png","日進月歩遭難中.png","朝まで寝よーーーーーーーーっと！！.png","歌う足立.png","波動拳！.png","畳み掛ける！.png","目新しい音探して三千里.png","空N足立.png","立ち強p足立.png","管理・処理室.png","素材テストで出力された個体.png","美味しくなーれ！.png","荒ぶる鷹の足立.png","走り足立1.png","走り足立2.png","走り足立3.png","走り足立4.png","足(右).png","足(左).png","足立はダンスにハマってる？.png","首狩り族右足立.png","首狩り族左足立.png","鳴り止まないこの音楽を…….png","ﾚｲﾀﾞﾖｰ.png" ];
+  const FILES = ["Wide Adachi Walking.png","YO! SAY夏が胸を刺激する足立.png","────という事なんですが…….png","「今日は一日雨ですね」.png","『とりま聞こう？』.png","あ…あの奇天烈な動き…！.png","ああいあうあえあおあんいいういえいおいんううえうおうんええおえんおおんん.wav.png","あいたたた….png","あなた.png","あらららら….png","あれれ.png","あれれれ….png","あれ？さっきまでここに…どこ行った？.png","いくぞ～.png","うわっ！.png","うんちつんつん足立.png","こっちの方がいいかな.png","これかぁ～？.png","これか？.png","これもいいなぁ.png","さし.png","しゃがみ.png","そいやっそいやっ.png","そこそこ遠…トホホ.png","そこどこ？.png","どっせいどっせい.png","ぬき.png","ばいばーい足立.png","ふーん…ワクワク….png","ぽっぴぽっぴぽっぽっぴっぽー右足立.png","ぽっぴぽっぴぽっぽっぴっぽー左足立.png","わたしにも血液はあります.png","アン＝ダン＝チ＝レイ.png","イェーイ足立.png","サボテンダー足立.png","スパイダーレイ.png","スピニングバードキック！.png","スンッ….png","セクシー足立.png","ニコーー.png","バッター足立.png","パーティションはないない足立.png","フィラメント残量切れで途中までしか出力されなかった個体.png","ホッ！ハッ！ヤッ！.png","メカニカルガール足立.png","モデルさん足立.png","ヨガフロート足立.png","ライトニング・ボルト足立.png","ロケット足立.png","ワクワク.png","充電中足立.png","別に食べれないことないけどさ.png","君の幸運を祈る.png","固定ミスでずれて出力された個体.png","変わった人間もいるんですね.png","外出た瞬間終わった足立.png","岐阜の足立.png","幕引きだ！.png","引きこもり絶対ジャスティス足立.png","待ち足立.png","日進月歩遭難中.png","朝まで寝よーーーーーーーーっと！！.png","歌う足立.png","波動拳！.png","畳み掛ける！.png","目新しい音探して三千里.png","空N足立.png","立ち強p足立.png","管理・処理室.png","素材テストで出力された個体.png","美味しくなーれ！.png","荒ぶる鷹の足立.png","走り足立1.png","走り足立2.png","走り足立3.png","走り足立4.png","足(右).png","足(左).png","足立はダンスにハマってる？.png","首狩り族右足立.png","首狩り族左足立.png","鳴り止まないこの音楽を…….png","ﾚｲﾀﾞﾖｰ.png" ];
 
   const ITEMS = FILES.map(file => ({ name: file.replace(/\.png$/i, ""), desc: "", img: "images/" + file }));
 
@@ -265,6 +271,11 @@
   const pickAvailable = () => ITEMS[randInt(ITEMS.length)];
 
   const escapeHtml = (s = "") => s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  const jitter = (str, range = 6) => {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) & 0xffff;
+    return (h % (range * 2 + 1)) - range;
+  };
   const playSound = (id, volume = 0.7) => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -320,12 +331,16 @@
     const stack = document.getElementById("ownedStack");
     if (!stack) return;
     const owned = ITEMS.filter(i => countsMap[i.name]);
-    const baseLeft = 20;
-    const spread = 18;
+    const baseLeft = 30;
+    const spread = 48; // wider spacing so cards are easier to pick
+    const baseTop = 120;
+    const totalWidth = Math.max(baseLeft + owned.length * spread + 260, stack.parentElement?.clientWidth || 0);
+    stack.style.width = `${totalWidth}px`;
     stack.innerHTML = owned.map((item, idx) => {
-      const left = baseLeft + idx * spread;
-      const rotate = (idx % 5 - 2) * 1.8;
-      return `<div class="stack-card" data-idx="${idx}" data-name="${escapeHtml(item.name)}" style="left:${left}px; transform: rotate(${rotate}deg); z-index:${idx};">
+      const shiftY = jitter(item.name + "y", 10);
+      const baseRot = (idx % 5 - 2) * 1.8;
+      const left = baseLeft + idx * spread + jitter(item.name, 8);
+      return `<div class="stack-card" data-idx="${idx}" data-name="${escapeHtml(item.name)}" data-base-y="${shiftY}" data-base-rot="${baseRot}" style="left:${left}px; top:${baseTop}px; transform: translateY(${shiftY}px) rotate(${baseRot}deg); z-index:${idx};">
         <img src="${escapeHtml(item.img)}" alt="${escapeHtml(item.name)}">
         <div class="count-badge" style="right:8px; bottom:8px;">x${countsMap[item.name]}</div>
       </div>`;
@@ -333,7 +348,7 @@
     attachStackHover();
   };
 
-  const attachStackHover = () => {
+const attachStackHover = () => {
     const stack = document.getElementById("ownedStack");
     if (!stack) return;
     const cards = [...stack.querySelectorAll(".stack-card")];
@@ -341,23 +356,20 @@
 
     const layout = (hoverIdx = -1) => {
       cards.forEach((card, idx) => {
-        const baseRotate = (idx % 5 - 2) * 1.8;
+        const baseRotate = Number(card.getAttribute("data-base-rot") || "0");
+        const baseY = Number(card.getAttribute("data-base-y") || "0");
         const distance = hoverIdx >= 0 ? idx - hoverIdx : 0;
         const spreadX = hoverIdx >= 0 ? distance * 32 : idx * 4;
         const lift = idx === hoverIdx ? -24 : 0;
         const scale = idx === hoverIdx ? 1.08 : 1;
         const z = hoverIdx >= 0 ? 200 - Math.abs(distance) : idx;
-        card.style.transform = `translateX(${spreadX}px) translateY(${lift}px) scale(${scale}) rotate(${baseRotate}deg)`;
+        card.style.transform = `translateX(${spreadX}px) translateY(${baseY + lift}px) scale(${scale}) rotate(${baseRotate}deg)`;
         card.style.zIndex = z;
         card.style.filter = idx === hoverIdx ? "brightness(1)" : "brightness(0.85)";
       });
 
       if (title) {
-        if (hoverIdx >= 0 && cards[hoverIdx]) {
-          title.textContent = cards[hoverIdx].getAttribute("data-name") || "";
-        } else {
-          title.textContent = "";
-        }
+        title.textContent = (hoverIdx >= 0 && cards[hoverIdx]) ? (cards[hoverIdx].getAttribute("data-name") || "") : "";
       }
     };
 
@@ -365,8 +377,7 @@
     stack.addEventListener("mouseleave", () => layout(-1));
     layout(-1);
   };
-
-  const scrollToHistory = (name) => {
+const scrollToHistory = (name) => {
     const body = document.querySelector('.dex-body');
     if (!body || !name) return;
     const card = [...body.querySelectorAll('.history-card')].find(c => c.getAttribute('data-name') === name);
@@ -425,6 +436,17 @@
   // タブ切り替え
   const tabs = document.querySelectorAll(".tab-btn");
   const panels = document.querySelectorAll(".tab-panel");
+  const dexBody = document.querySelector('.dex-body');
+  const updateDexScroll = (idx) => {
+    if (!dexBody) return;
+    if (panels[idx] && panels[idx].id === "tab-owned") {
+      dexBody.style.overflowY = "hidden";
+      dexBody.classList.add("owned-no-scroll");
+    } else {
+      dexBody.style.overflowY = "auto";
+      dexBody.classList.remove("owned-no-scroll");
+    }
+  };
   tabs.forEach(tab => {
     tab.addEventListener("click", () => {
       tabs.forEach(t => t.classList.remove("active"));
@@ -432,8 +454,10 @@
       tab.classList.add("active");
       const idx = Array.from(tabs).indexOf(tab);
       if (panels[idx]) panels[idx].classList.add("active");
+      updateDexScroll(idx);
     });
   });
+  updateDexScroll(0);
 
   // 拡大表示
   const modal = document.getElementById("modal");
@@ -471,13 +495,22 @@
     }
   });
 
-  const dexBody = document.querySelector('.dex-body');
-  if (dexBody) {
-    dexBody.addEventListener('wheel', (e) => {
+    const dexBodyWheel = document.querySelector('.dex-body');
+  if (dexBodyWheel) {
+    dexBodyWheel.addEventListener("wheel", (e) => {
+      const ownedTab = document.getElementById("tab-owned");
+      if (ownedTab && ownedTab.classList.contains("active")) {
+        const stackArea = document.getElementById("ownedStack");
+        if (stackArea) {
+          stackArea.scrollLeft += e.deltaY;
+        }
+        e.preventDefault();
+        return;
+      }
       const speed = Math.min(1, Math.abs(e.deltaY) / 400);
       const volume = 0.05 + 0.12 * speed;
-      playSound('se7', volume);
-    }, { passive: true });
+      playSound("se7", volume);
+    }, { passive: false });
   }
 
 // BGMループと音量・オンオフ
@@ -517,6 +550,42 @@
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
