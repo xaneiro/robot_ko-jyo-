@@ -22,9 +22,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("catalog");
   const [modalImg, setModalImg] = useState(null);
   const [mode, setMode] = useState("normal");
+  const [bgmOn, setBgmOn] = useState(true);
+  const [bgmVol, setBgmVol] = useState(0.4);
   const [lastDrawnName, setLastDrawnName] = useState(null);
   const [shakeName, setShakeName] = useState(null);
   const [drawPulse, setDrawPulse] = useState(0);
+  const [ownedHover, setOwnedHover] = useState(null);
 
   const dexBodyRef = useRef(null);
   const historyRef = useRef(null);
@@ -50,6 +53,50 @@ export default function App() {
     clone.play().catch(() => {});
   };
 
+  useEffect(() => {
+    const bgm = audioRefs.bgm.current;
+    if (!bgm) return;
+    const handleTimeUpdate = () => {
+      if (bgm.duration && bgm.currentTime > bgm.duration - 0.12) {
+        bgm.currentTime = 0;
+        bgm.play().catch(() => {});
+      }
+    };
+    const handleEnded = () => {
+      bgm.currentTime = 0;
+      bgm.play().catch(() => {});
+    };
+    bgm.loop = true;
+    bgm.addEventListener("timeupdate", handleTimeUpdate);
+    bgm.addEventListener("ended", handleEnded);
+    return () => {
+      bgm.removeEventListener("timeupdate", handleTimeUpdate);
+      bgm.removeEventListener("ended", handleEnded);
+    };
+  }, []);
+
+  useEffect(() => {
+    const bgm = audioRefs.bgm.current;
+    if (!bgm) return;
+    bgm.volume = bgmVol;
+    if (bgmOn) {
+      const play = bgm.play();
+      if (play && typeof play.catch === "function") play.catch(() => {});
+    } else {
+      bgm.pause();
+    }
+  }, [bgmOn, bgmVol]);
+
+  useEffect(() => {
+    const handler = () => {
+      if (!bgmOn) return;
+      const bgm = audioRefs.bgm.current;
+      if (!bgm) return;
+      bgm.play().catch(() => {});
+    };
+    document.addEventListener("click", handler, { once: true });
+    return () => document.removeEventListener("click", handler);
+  }, [bgmOn]);
   useEffect(() => {
     localStorage.removeItem(LS_DRAWN);
     localStorage.removeItem(LS_COUNT);
@@ -107,6 +154,7 @@ export default function App() {
   };
 
   const ownedItems = useMemo(() => ITEMS.filter((i) => countsMap[i.name]), [countsMap]);
+  const hoveredIdx = ownedItems.findIndex((i) => i.name === ownedHover);
 
   const historyList = ITEMS.map((item) => {
     const got = Boolean(drawnMap[item.name]);
@@ -145,14 +193,28 @@ export default function App() {
   });
 
   const ownedStack = ownedItems.map((item, idx) => {
-    const baseLeft = 30 + idx * 48;
-    const top = 120;
+    const jitterX = ((idx * 17) % 10) - 5;
+    const jitterY = ((idx * 13) % 12) - 6;
+    const baseLeft = 30 + idx * 64 + jitterX;
+    const top = 120 + jitterY;
+    const diff = hoveredIdx >= 0 ? idx - hoveredIdx : 0;
+    const offset = hoveredIdx >= 0 ? diff * 40 : 0;
+    const lift = diff === 0 && hoveredIdx >= 0 ? 40 : 0;
+    const baseRot = ((idx * 9) % 8) - 4;
+    const rot = hoveredIdx >= 0 ? (diff === 0 ? 0 : baseRot) : baseRot;
+    const scale = hoveredIdx >= 0 ? (diff === 0 ? 1.02 : 0.94) : 1;
+    const z = hoveredIdx >= 0 ? (diff === 0 ? 999 : 900 - Math.abs(diff)) : idx;
     return (
       <div
         key={item.name}
         className="stack-card"
-        style={{ left: baseLeft, top, zIndex: idx }}
+        style={{ left: baseLeft + offset, top: top - lift, zIndex: z, transform: `rotate(${rot}deg) scale(${scale})` }}
         data-name={item.name}
+        onMouseEnter={() => setOwnedHover(item.name)}
+        onMouseLeave={(e) => {
+          const next = e.relatedTarget;
+          if (!next || !next.closest || !next.closest(".stack-card")) setOwnedHover(null);
+        }}
       >
         <img src={item.img} alt={item.name} />
         <div className="count-badge" style={{ right: 8, bottom: 8 }}>
@@ -184,10 +246,20 @@ export default function App() {
   })();
 
   const handleDexWheel = (e) => {
-    if (activeTab !== "catalog") return;
-    const speed = Math.min(1, Math.abs(e.deltaY) / 400);
-    const volume = 0.05 + 0.12 * speed;
-    playSound("se7", volume);
+    if (activeTab === "catalog") {
+      const body = dexBodyRef.current;
+      const speed = Math.min(1, Math.abs(e.deltaY) / 400);
+      const volume = 0.05 + 0.12 * speed;
+      playSound("se7", volume);
+      e.preventDefault();
+      e.stopPropagation();
+      if (body) body.scrollBy({ top: e.deltaY, behavior: "auto" });
+    } else if (activeTab === "owned") {
+      const area = ownedRef.current;
+      e.preventDefault();
+      e.stopPropagation();
+      if (area) area.scrollBy({ left: e.deltaY, behavior: "auto" });
+    }
   };
 
   return (
@@ -228,6 +300,19 @@ export default function App() {
                   <div className="lamp amber"></div>
                   <div className="lamp green"></div>
                   <div className="lamp blue"></div>
+                  <button className="toggle" onClick={() => setBgmOn((v) => !v)}>{bgmOn ? "BGM: ON" : "BGM: OFF"}</button>
+                  <div className="volume">
+                    <label htmlFor="vol">音量</label>
+                    <input
+                      type="range"
+                      id="vol"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={bgmVol}
+                      onChange={(e) => setBgmVol(Number(e.target.value))}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -245,10 +330,10 @@ export default function App() {
                 <div className={`tab-panel ${activeTab === "catalog" ? "active" : ""}`} id="tab-catalog">
                   <div className="history"><div className="list" id="history" ref={historyRef}>{historyList}</div></div>
                 </div>
-                <div className={`tab-panel ${activeTab === "owned" ? "active" : ""}`} id="tab-owned">
-                  <div className="owned-stack">
-                    <div className="owned-title" id="ownedTitle"></div>
-                    <div className="stack-area" id="ownedStack" ref={ownedRef}>
+                <div className={`tab-panel ${activeTab === "owned" ? "active" : ""}`} id="tab-owned" onWheelCapture={handleDexWheel}>
+                  <div className="owned-stack" onWheelCapture={handleDexWheel}>
+                    <div className="owned-title" id="ownedTitle">{ownedHover || ""}</div>
+                    <div className="stack-area" id="ownedStack" ref={ownedRef} onMouseLeave={() => setOwnedHover(null)} onWheelCapture={handleDexWheel}>
                       {ownedStack}
                     </div>
                   </div>
@@ -266,7 +351,7 @@ export default function App() {
         </p>
       </div>
 
-      {modalImg && (
+            {modalImg && (
         <div className="modal show" onClick={() => setModalImg(null)}>
           <div className="modal-content">
             <img src={modalImg} alt="modal" />
@@ -276,3 +361,14 @@ export default function App() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
