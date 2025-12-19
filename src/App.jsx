@@ -256,6 +256,9 @@ export default function App() {
       if (body) body.scrollBy({ top: e.deltaY, behavior: "auto" });
     } else if (activeTab === "owned") {
       const area = ownedRef.current;
+      const speed = Math.min(1, Math.abs(e.deltaY) / 400);
+      const volume = 0.05 + 0.12 * speed;
+      playSound("se7", volume);
       e.preventDefault();
       e.stopPropagation();
       if (area) area.scrollBy({ left: e.deltaY, behavior: "auto" });
@@ -361,6 +364,7 @@ export default function App() {
     </>
   );
 }
+
 
 
 
