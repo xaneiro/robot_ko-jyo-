@@ -22,7 +22,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("catalog");
   const [modalImg, setModalImg] = useState(null);
   const [mode, setMode] = useState("normal");
+  const [lastDrawnName, setLastDrawnName] = useState(null);
+  const [shakeName, setShakeName] = useState(null);
+  const [drawPulse, setDrawPulse] = useState(0);
 
+  const dexBodyRef = useRef(null);
   const historyRef = useRef(null);
   const ownedRef = useRef(null);
 
@@ -34,6 +38,7 @@ export default function App() {
     se4: useRef(null),
     se5: useRef(null),
     se6: useRef(null),
+    se7: useRef(null),
   };
 
   const playSound = (id, volume = 0.7) => {
@@ -60,10 +65,23 @@ export default function App() {
     localStorage.setItem(LS_COUNT, String(drawCount));
   }, [drawnMap, countsMap, drawCount]);
 
+  useEffect(() => {
+    if (!lastDrawnName) return;
+    const raf = requestAnimationFrame(() => scrollToHistory(lastDrawnName));
+    return () => cancelAnimationFrame(raf);
+  }, [lastDrawnName, drawnMap]);
+
+  useEffect(() => {
+    if (!shakeName) return;
+    const timer = setTimeout(() => setShakeName(null), 350);
+    return () => clearTimeout(timer);
+  }, [shakeName]);
+
   const scrollToHistory = (name) => {
-    const body = historyRef.current;
-    if (!body) return;
-    const card = body.querySelector(`[data-name="${name}"]`);
+    const body = dexBodyRef.current;
+    const list = historyRef.current;
+    if (!body || !list) return;
+    const card = list.querySelector(`[data-name="${name}"]`);
     if (!card) return;
     const top = card.offsetTop - 8;
     body.scrollTo({ top, behavior: "smooth" });
@@ -78,7 +96,8 @@ export default function App() {
     setCountsMap((prev) => ({ ...prev, [item.name]: (prev[item.name] || 0) + 1 }));
     setDrawCount((c) => c + 1);
     setResult({ type: "item", item, at: now, count: drawCount + 1 });
-    scrollToHistory(item.name);
+    setLastDrawnName(item.name);
+    setDrawPulse((p) => p + 1);
   };
 
   const handleAssemble = () => {
@@ -95,14 +114,17 @@ export default function App() {
     return (
       <div
         key={item.name}
-        className={`card ${got ? "got" : "locked"} history-card`}
+        className={`card ${got ? "got" : "locked"} history-card ${shakeName === item.name ? "shake" : ""}`}
         data-name={got ? item.name : undefined}
+        onMouseEnter={() => playSound(got ? "se1" : "se2", 0.45)}
         onClick={() => {
           if (got) {
             playSound("se4", 0.65);
             setModalImg(item.img);
           } else {
             playSound("se5", 0.75);
+            setShakeName(null);
+            setTimeout(() => setShakeName(item.name), 0);
           }
         }}
       >
@@ -144,7 +166,7 @@ export default function App() {
     if (result.type === "canvas") return <div className="canvas-blank">キャンバス</div>;
     if (result.type === "item" && result.item) {
       return (
-        <div className="card with-image got">
+        <div key={`result-${drawPulse}`} className="card with-image got draw-anim">
           <div className="thumb">
             <img src={result.item.img} alt={result.item.name} />
           </div>
@@ -161,6 +183,13 @@ export default function App() {
     return <div className="small">作るボタンでガチャを回してください。</div>;
   })();
 
+  const handleDexWheel = (e) => {
+    if (activeTab !== "catalog") return;
+    const speed = Math.min(1, Math.abs(e.deltaY) / 400);
+    const volume = 0.05 + 0.12 * speed;
+    playSound("se7", volume);
+  };
+
   return (
     <>
       <audio ref={audioRefs.bgm} src="/bgm/bgm1.mp3" loop />
@@ -170,6 +199,7 @@ export default function App() {
       <audio ref={audioRefs.se4} src="/se/se4.mp3" preload="auto" />
       <audio ref={audioRefs.se5} src="/se/se5.mp3" preload="auto" />
       <audio ref={audioRefs.se6} src="/se/se6.mp3" preload="auto" />
+      <audio ref={audioRefs.se7} src="/se/se7.mp3" preload="auto" />
 
       <div className="wrap">
         <h1>ロボットコージョー ガチャ</h1>
@@ -181,7 +211,7 @@ export default function App() {
 
           <div className="panel">
             <div className="monitor-bar">
-              <button className="monitor-btn" id="drawBtn" onClick={handleDraw}>作る</button>
+              <button className="monitor-btn" id="drawBtn" onMouseEnter={() => playSound("se3", 0.65)} onClick={handleDraw}>作る</button>
               <button className="monitor-btn" id="assembleBtn" onClick={handleAssemble}>組み立てる</button>
             </div>
 
@@ -211,7 +241,7 @@ export default function App() {
                 </div>
                 <div className="dex-stats">制作済み <span>{Object.keys(drawnMap).length}</span> / <span>{ITEMS.length}</span></div>
               </div>
-              <div className={`dex-body ${activeTab === "owned" ? "owned-no-scroll" : ""}`}>
+              <div className={`dex-body ${activeTab === "owned" ? "owned-no-scroll" : ""}`} ref={dexBodyRef} onWheel={handleDexWheel}>
                 <div className={`tab-panel ${activeTab === "catalog" ? "active" : ""}`} id="tab-catalog">
                   <div className="history"><div className="list" id="history" ref={historyRef}>{historyList}</div></div>
                 </div>
