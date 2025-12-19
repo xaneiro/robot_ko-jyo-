@@ -135,3 +135,24 @@ h1 { font-size: 20px; margin: 0 0 16px; font-weight: 800; letter-spacing:.04em; 
 .dex-body { overscroll-behavior: contain; }
 .owned-stack .stack-area { overscroll-behavior: contain; }
 
+
+.result.canvas-mode { padding: 14px; align-items: center; justify-content: center; min-height: 420px; }
+.result.canvas-mode .canvas-blank { width: 100%; height: 100%; min-height: inherit; }
+
+.screen-inner.canvas-mode {
+  background: #ffffff;
+  border-color: #d6dce5;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04), inset 0 0 0 2px rgba(0,0,0,0.08), 0 10px 26px rgba(0,0,0,0.28);
+}
+.screen-inner.canvas-mode .canvas-blank {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+
+.canvas-board { position: relative; width: 100%; height: 100%; min-height: 420px; background: #ffffff; border-radius: 8px; border: 1px dashed #c9d2de; }
+.canvas-item { position: absolute; width: 160px; padding: 8px; background: #fff; border: 1px solid #cfd6e2; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.18); }
+.canvas-item img { width: 100%; height: 140px; object-fit: contain; display: block; background: #fff; border-radius: 6px; }
+.canvas-caption { margin-top: 6px; font-size: 12px; font-weight: 700; color: #2b313a; text-align: center; }
+.canvas-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #5a6575; font-weight: 700; letter-spacing: .04em; }

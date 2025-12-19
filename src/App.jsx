@@ -28,10 +28,13 @@ export default function App() {
   const [shakeName, setShakeName] = useState(null);
   const [drawPulse, setDrawPulse] = useState(0);
   const [ownedHover, setOwnedHover] = useState(null);
+  const [canvasItems, setCanvasItems] = useState([]);
 
   const dexBodyRef = useRef(null);
   const historyRef = useRef(null);
   const ownedRef = useRef(null);
+  const canvasRef = useRef(null);
+  const dragItemRef = useRef(null);
 
   const audioRefs = {
     bgm: useRef(null),
@@ -150,11 +153,62 @@ export default function App() {
   const handleAssemble = () => {
     playSound("se6", 0.6);
     setMode("canvas");
+    setCanvasItems([]);
     setResult({ type: "canvas" });
   };
 
   const ownedItems = useMemo(() => ITEMS.filter((i) => countsMap[i.name]), [countsMap]);
   const hoveredIdx = ownedItems.findIndex((i) => i.name === ownedHover);
+
+  const addToCanvas = (item, xPerc, yPerc) => {
+    if (mode !== "canvas") return;
+    const clamp = (v) => Math.min(96, Math.max(4, v));
+    const x = xPerc == null ? Math.random() * 60 + 10 : clamp(xPerc);
+    const y = yPerc == null ? Math.random() * 60 + 10 : clamp(yPerc);
+    setCanvasItems((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random()}`,
+        name: item.name,
+        img: item.img,
+        x,
+        y,
+      },
+    ]);
+  };
+
+  const handleDragStart = (item, e) => {
+    if (mode !== "canvas") return;
+    dragItemRef.current = item;
+    if (e && e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "copy";
+      e.dataTransfer.dropEffect = "copy";
+      try { e.dataTransfer.setData("text/plain", item.name); } catch (_) {}
+    }
+  };
+
+  const handleDragEnd = () => {
+    dragItemRef.current = null;
+  };
+
+  const handleCanvasDragOver = (e) => {
+    if (mode !== "canvas") return;
+    e.preventDefault();
+  };
+
+  const handleCanvasDrop = (e) => {
+    if (mode !== "canvas") return;
+    const item = dragItemRef.current;
+    if (!item) return;
+    const board = canvasRef.current;
+    if (!board) return;
+    e.preventDefault();
+    const rect = board.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    addToCanvas(item, x, y);
+    dragItemRef.current = null;
+  };
 
   const historyList = ITEMS.map((item) => {
     const got = Boolean(drawnMap[item.name]);
@@ -208,15 +262,18 @@ export default function App() {
       <div
         key={item.name}
         className="stack-card"
-        style={{ left: baseLeft + offset, top: top - lift, zIndex: z, transform: `rotate(${rot}deg) scale(${scale})` }}
+        style={{ left: baseLeft + offset, top: top - lift, zIndex: z, transform: `rotate(${rot}deg) scale(${scale})`, cursor: mode === "canvas" ? "grab" : "default" }}
         data-name={item.name}
+        draggable={mode === "canvas"}
+        onDragStart={(e) => handleDragStart(item, e)}
+        onDragEnd={handleDragEnd}
         onMouseEnter={() => setOwnedHover(item.name)}
         onMouseLeave={(e) => {
           const next = e.relatedTarget;
           if (!next || !next.closest || !next.closest(".stack-card")) setOwnedHover(null);
         }}
       >
-        <img src={item.img} alt={item.name} />
+        <img src={item.img} alt={item.name} draggable={false} />
         <div className="count-badge" style={{ right: 8, bottom: 8 }}>
           x{countsMap[item.name]}
         </div>
@@ -225,7 +282,19 @@ export default function App() {
   });
 
   const resultNode = (() => {
-    if (result.type === "canvas") return <div className="canvas-blank">キャンバス</div>;
+    if (result.type === "canvas") return (
+      <div className="canvas-blank" ref={canvasRef} onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}>
+        <div className="canvas-board" onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}>
+          {canvasItems.map((c) => (
+            <div key={c.id} className="canvas-item" style={{ left: `${c.x}%`, top: `${c.y}%` }}>
+              <img src={c.img} alt={c.name} />
+              <div className="canvas-caption">{c.name}</div>
+            </div>
+          ))}
+          {canvasItems.length === 0 && <div className="canvas-hint">所持カード一覧をクリックして貼り付け</div>}
+        </div>
+      </div>
+    );
     if (result.type === "item" && result.item) {
       return (
         <div key={`result-${drawPulse}`} className="card with-image got draw-anim">
@@ -292,9 +361,9 @@ export default function App() {
 
             <div className="monitor-screen">
               <div className="monitor-bezel">
-                <div className="screen-inner">
+                <div className={`screen-inner ${mode === "canvas" ? "canvas-mode" : ""}`} onDragOver={mode === "canvas" ? handleCanvasDragOver : undefined} onDrop={mode === "canvas" ? handleCanvasDrop : undefined}>
                   {mode === "normal" && <div className="screen-noise"></div>}
-                  <div className="result" id="result">
+                  <div className={`result ${mode === "canvas" ? "canvas-mode" : ""}`} id="result" onDragOver={mode === "canvas" ? handleCanvasDragOver : undefined} onDrop={mode === "canvas" ? handleCanvasDrop : undefined}>
                     {resultNode}
                   </div>
                 </div>
@@ -364,6 +433,20 @@ export default function App() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
