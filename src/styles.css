@@ -164,3 +164,6 @@ h1 { font-size: 20px; margin: 0 0 16px; font-weight: 800; letter-spacing:.04em; 
 .canvas-guide img { display:block; max-width:260px; max-height:260px; object-fit: contain; background: transparent; }
 
 .canvas-item.selected { outline: 2px solid rgba(77,225,255,0.8); box-shadow: 0 0 12px rgba(77,225,255,0.45); }
+
+.owned-selected-name { padding: 6px 12px 2px; font-weight: 800; color: var(--text); letter-spacing: .02em; min-height: 22px; }
+

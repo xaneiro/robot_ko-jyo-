@@ -378,7 +378,7 @@ export default function App() {
         draggable={mode === "canvas"}
         onDragStart={(e) => handleDragStart(item, e)}
         onDragEnd={handleDragEnd}
-        onMouseEnter={() => setOwnedHover(item.name)}
+        onMouseEnter={() => { setSelectedId(null); setOwnedHover(item.name); }}
         onMouseLeave={(e) => {
           const next = e.relatedTarget;
           if (!next || !next.closest || !next.closest(".stack-card")) setOwnedHover(null);
@@ -391,6 +391,10 @@ export default function App() {
       </div>
     );
   });
+
+  const ownedTitle = selectedId
+    ? (canvasItems.find((c) => c.id === selectedId)?.name || "")
+    : (ownedHover || "");
 
   const resultNode = (() => {
     if (result.type === "canvas") return (
@@ -519,7 +523,7 @@ export default function App() {
                 </div>
                 <div className={`tab-panel ${activeTab === "owned" ? "active" : ""}`} id="tab-owned" onWheelCapture={handleDexWheel}>
                   <div className="owned-stack" onWheelCapture={handleDexWheel}>
-                    <div className="owned-title" id="ownedTitle">{ownedHover || ""}</div>
+                    <div className="owned-title" id="ownedTitle">{ownedTitle}</div>
                     <div className="stack-area" id="ownedStack" ref={ownedRef} onMouseLeave={() => setOwnedHover(null)} onWheelCapture={handleDexWheel}>
                       {ownedStack}
                     </div>
@@ -548,6 +552,10 @@ export default function App() {
     </>
   );
 }
+
+
+
+
 
 
 
