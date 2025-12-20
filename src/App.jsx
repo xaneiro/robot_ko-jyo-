@@ -171,7 +171,7 @@ export default function App() {
     body.scrollTo({ top, behavior: "smooth" });
   };
 
-    const handleDraw = () => {
+  const handleDraw = () => {
     // ガチャ画面に戻すだけ（抽選はしない）
     setMode("normal");
     setPreviewPos(null);
@@ -198,6 +198,26 @@ export default function App() {
     setDrawPulse((p) => p + 1);
   };
 
+  const handleUnlockAll = () => {
+    const now = Date.now();
+    const allDrawn = {};
+    const allCounts = {};
+    ITEMS.forEach((item) => {
+      allDrawn[item.name] = now;
+      allCounts[item.name] = 1;
+    });
+    setMode("normal");
+    setPreviewPos(null);
+    setPreviewItem(null);
+    setSelectedId(null);
+    setIsDragging(false);
+    setResult({ type: "message" });
+    setDrawnMap(allDrawn);
+    setCountsMap(allCounts);
+    setDrawCount(ITEMS.length);
+    setLastDrawnName(null);
+  };
+
   const handleAssemble = () => {
     playSound("se6", 0.6);
     setMode("canvas");
@@ -207,6 +227,16 @@ export default function App() {
     setIsDragging(false);
     dragOffsetRef.current = null;
     setResult({ type: "canvas" });
+  };
+
+  const handleBattle = () => {
+    playSound("se6", 0.7);
+    setMode("normal");
+    setPreviewPos(null);
+    setPreviewItem(null);
+    setSelectedId(null);
+    setIsDragging(false);
+    setResult((prev) => (prev?.type === "item" ? prev : { type: "message" }));
   };
 
   const ownedItems = useMemo(() => ITEMS.filter((i) => countsMap[i.name]), [countsMap]);
@@ -476,6 +506,7 @@ export default function App() {
             <div className="monitor-bar">
               <button className="monitor-btn" id="drawBtn" onMouseEnter={() => playSound("se3", 0.65)} onClick={handleDraw}>作る</button>
               <button className="monitor-btn" id="assembleBtn" onClick={handleAssemble}>組み立てる</button>
+              <button className="monitor-btn" id="battleBtn" onClick={handleBattle}>戦闘</button>
             </div>
 
             <div className="monitor-screen">
@@ -503,7 +534,9 @@ export default function App() {
                       value={bgmVol}
                       onChange={(e) => setBgmVol(Number(e.target.value))}
                     />
-                  </div>`n                  <button className="toggle" onClick={handleGacha}>ガチャ</button>
+                  </div>
+                  <button className="toggle" onClick={handleGacha}>ガチャ</button>
+                  <button className="toggle" onClick={handleUnlockAll}>全キャラ入手</button>
                 </div>
               </div>
             </div>
@@ -522,6 +555,7 @@ export default function App() {
                   <div className="history"><div className="list" id="history" ref={historyRef}>{historyList}</div></div>
                 </div>
                 <div className={`tab-panel ${activeTab === "owned" ? "active" : ""}`} id="tab-owned" onWheelCapture={handleDexWheel}>
+                  <div className="owned-selected-name">{ownedTitle || ""}</div>
                   <div className="owned-stack" onWheelCapture={handleDexWheel}>
                     <div className="owned-title" id="ownedTitle">{ownedTitle}</div>
                     <div className="stack-area" id="ownedStack" ref={ownedRef} onMouseLeave={() => setOwnedHover(null)} onWheelCapture={handleDexWheel}>
@@ -542,7 +576,7 @@ export default function App() {
         </p>
       </div>
 
-            {modalImg && (
+      {modalImg && (
         <div className="modal show" onClick={() => setModalImg(null)}>
           <div className="modal-content">
             <img src={modalImg} alt="modal" />
@@ -552,99 +586,4 @@ export default function App() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
