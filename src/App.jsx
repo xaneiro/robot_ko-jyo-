@@ -190,11 +190,11 @@ export default function App() {
     playSound("se6", 0.8);
     const item = randItem();
     const now = Date.now();
-    setDrawnMap((prev) => ({ ...prev, [item.name]: prev[item.name] || now }));
-    setCountsMap((prev) => ({ ...prev, [item.name]: (prev[item.name] || 0) + 1 }));
+    setDrawnMap((prev) => ({ ...prev, [item.key]: prev[item.key] || now }));
+    setCountsMap((prev) => ({ ...prev, [item.key]: (prev[item.key] || 0) + 1 }));
     setDrawCount((c) => c + 1);
     setResult({ type: "item", item, at: now, count: drawCount + 1 });
-    setLastDrawnName(item.name);
+    setLastDrawnName(item.key);
     setDrawPulse((p) => p + 1);
   };
 
@@ -203,8 +203,8 @@ export default function App() {
     const allDrawn = {};
     const allCounts = {};
     ITEMS.forEach((item) => {
-      allDrawn[item.name] = now;
-      allCounts[item.name] = 1;
+      allDrawn[item.key] = now;
+      allCounts[item.key] = 1;
     });
     setMode("normal");
     setPreviewPos(null);
@@ -239,8 +239,8 @@ export default function App() {
     setResult((prev) => (prev?.type === "item" ? prev : { type: "message" }));
   };
 
-  const ownedItems = useMemo(() => ITEMS.filter((i) => countsMap[i.name]), [countsMap]);
-  const hoveredIdx = ownedItems.findIndex((i) => i.name === ownedHover);
+  const ownedItems = useMemo(() => ITEMS.filter((i) => countsMap[i.key]), [countsMap]);
+  const hoveredIdx = ownedItems.findIndex((i) => i.key === ownedHover);
 
   const addToCanvas = (item, xPerc, yPerc) => {
     if (mode !== "canvas") return;
@@ -352,13 +352,13 @@ export default function App() {
     }
   };
   const historyList = ITEMS.map((item) => {
-    const got = Boolean(drawnMap[item.name]);
+    const got = Boolean(drawnMap[item.key]);
     const displayName = got ? item.name : "???";
     return (
       <div
-        key={item.name}
-        className={`card ${got ? "got" : "locked"} history-card ${shakeName === item.name ? "shake" : ""}`}
-        data-name={got ? item.name : undefined}
+        key={item.key}
+        className={`card ${got ? "got" : "locked"} history-card ${shakeName === item.key ? "shake" : ""}`}
+        data-name={got ? item.key : undefined}
         onMouseEnter={() => playSound(got ? "se1" : "se2", 0.45)}
         onClick={() => {
           if (got) {
@@ -367,7 +367,7 @@ export default function App() {
           } else {
             playSound("se5", 0.75);
             setShakeName(null);
-            setTimeout(() => setShakeName(item.name), 0);
+            setTimeout(() => setShakeName(item.key), 0);
           }
         }}
       >
@@ -381,7 +381,7 @@ export default function App() {
               <Badge got={got} />
             </div>
           </div>
-          <div className="count-badge">所持数: {countsMap[item.name] || 0}</div>
+          <div className="count-badge">所持数: {countsMap[item.key] || 0}</div>
         </div>
       </div>
     );
@@ -401,30 +401,27 @@ export default function App() {
     const z = hoveredIdx >= 0 ? (diff === 0 ? 999 : 900 - Math.abs(diff)) : idx;
     return (
       <div
-        key={item.name}
+        key={item.key}
         className="stack-card"
         style={{ left: baseLeft + offset, top: top - lift, zIndex: z, transform: `rotate(${rot}deg) scale(${scale})`, cursor: mode === "canvas" ? "grab" : "default" }}
-        data-name={item.name}
-        draggable={mode === "canvas"}
+        data-name={item.key}
+        draggable={mode === "canvas"} onMouseEnter={() => { setSelectedId(null); setOwnedHover(item.key); }} onMouseLeave={() => setOwnedHover(null)}
         onDragStart={(e) => handleDragStart(item, e)}
         onDragEnd={handleDragEnd}
-        onMouseEnter={() => { setSelectedId(null); setOwnedHover(item.name); }}
-        onMouseLeave={(e) => {
-          const next = e.relatedTarget;
-          if (!next || !next.closest || !next.closest(".stack-card")) setOwnedHover(null);
-        }}
-      >
+        onMouseEnter={() => { setSelectedId(null); setOwnedHover(item.key); }}
+        >
         <img src={item.img} alt={item.name} draggable={false} />
         <div className="count-badge" style={{ right: 8, bottom: 8 }}>
-          x{countsMap[item.name]}
+          x{countsMap[item.key]}
         </div>
       </div>
     );
   });
 
+  const hoveredName = ownedHover ? (ITEMS.find((i) => i.key === ownedHover)?.name || "") : "";
   const ownedTitle = selectedId
     ? (canvasItems.find((c) => c.id === selectedId)?.name || "")
-    : (ownedHover || "");
+    : hoveredName;
 
   const resultNode = (() => {
     if (result.type === "canvas") return (
@@ -462,6 +459,16 @@ export default function App() {
     }
     return <div className="small">作るボタンでガチャを回してください。</div>;
   })();
+
+  const handleOwnedMouseMove = (e) => {
+    const card = e.target.closest?.(".stack-card");
+    if (card && ownedRef.current && ownedRef.current.contains(card)) {
+      const name = card.getAttribute("data-name");
+      setOwnedHover(name || null);
+    } else {
+      setOwnedHover(null);
+    }
+  };
 
   const handleDexWheel = (e) => {
     if (activeTab === "catalog") {
@@ -558,7 +565,7 @@ export default function App() {
                   <div className="owned-selected-name">{ownedTitle || ""}</div>
                   <div className="owned-stack" onWheelCapture={handleDexWheel}>
                     <div className="owned-title" id="ownedTitle">{ownedTitle}</div>
-                    <div className="stack-area" id="ownedStack" ref={ownedRef} onMouseLeave={() => setOwnedHover(null)} onWheelCapture={handleDexWheel}>
+                    <div className="stack-area" id="ownedStack" ref={ownedRef} onWheelCapture={handleDexWheel} onMouseLeave={() => setOwnedHover(null)} onMouseMove={handleOwnedMouseMove} onMouseLeave={() => setOwnedHover(null)}>
                       {ownedStack}
                     </div>
                   </div>
@@ -586,4 +593,12 @@ export default function App() {
     </>
   );
 }
+
+
+
+
+
+
+
+
 
