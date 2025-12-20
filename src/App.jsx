@@ -29,6 +29,8 @@ export default function App() {
   const [drawPulse, setDrawPulse] = useState(0);
   const [ownedHover, setOwnedHover] = useState(null);
   const [canvasItems, setCanvasItems] = useState([]);
+  const [previewPos, setPreviewPos] = useState(null);
+  const [previewItem, setPreviewItem] = useState(null);
 
   const dexBodyRef = useRef(null);
   const historyRef = useRef(null);
@@ -139,6 +141,8 @@ export default function App() {
 
   const handleDraw = () => {
     setMode("normal");
+    setPreviewPos(null);
+    setPreviewItem(null);
     playSound("se6", 0.8);
     const item = randItem();
     const now = Date.now();
@@ -154,6 +158,8 @@ export default function App() {
     playSound("se6", 0.6);
     setMode("canvas");
     setCanvasItems([]);
+    setPreviewPos(null);
+    setPreviewItem(null);
     setResult({ type: "canvas" });
   };
 
@@ -180,6 +186,7 @@ export default function App() {
   const handleDragStart = (item, e) => {
     if (mode !== "canvas") return;
     dragItemRef.current = item;
+    setPreviewItem(item);
     if (e && e.dataTransfer) {
       e.dataTransfer.effectAllowed = "copy";
       e.dataTransfer.dropEffect = "copy";
@@ -189,11 +196,28 @@ export default function App() {
 
   const handleDragEnd = () => {
     dragItemRef.current = null;
+    setPreviewPos(null);
+    setPreviewItem(null);
   };
 
   const handleCanvasDragOver = (e) => {
     if (mode !== "canvas") return;
     e.preventDefault();
+    const item = dragItemRef.current;
+    if (!item) return;
+    const board = canvasRef.current;
+    if (!board) return;
+    const rect = board.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setPreviewPos({ x, y });
+    setPreviewItem(item);
+  };
+
+  const handleCanvasDragLeave = () => {
+    if (mode !== "canvas") return;
+    setPreviewPos(null);
+    setPreviewItem(null);
   };
 
   const handleCanvasDrop = (e) => {
@@ -207,6 +231,8 @@ export default function App() {
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     addToCanvas(item, x, y);
+    setPreviewPos(null);
+    setPreviewItem(null);
     dragItemRef.current = null;
   };
 
@@ -283,13 +309,18 @@ export default function App() {
 
   const resultNode = (() => {
     if (result.type === "canvas") return (
-      <div className="canvas-blank" ref={canvasRef} onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}>
-        <div className="canvas-board" onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}>
-                    {canvasItems.map((c) => (
+      <div className="canvas-blank" ref={canvasRef} onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop} onDragLeave={handleCanvasDragLeave}>
+        <div className="canvas-board" onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop} onDragLeave={handleCanvasDragLeave}>
+          {canvasItems.map((c) => (
             <div key={c.id} className="canvas-item" style={{ left: `${c.x}%`, top: `${c.y}%` }}>
               <img src={c.img} alt={c.name} draggable={false} />
             </div>
           ))}
+          {previewPos && previewItem && (
+            <div className="canvas-guide" style={{ left: `${previewPos.x}%`, top: `${previewPos.y}%` }}>
+              <img src={previewItem.img} alt={previewItem.name} draggable={false} />
+            </div>
+          )}
           {canvasItems.length === 0 && <div className="canvas-hint">所持カード一覧をクリックして貼り付け</div>}
         </div>
       </div>
@@ -432,6 +463,35 @@ export default function App() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
