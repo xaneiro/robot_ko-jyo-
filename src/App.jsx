@@ -1,9 +1,18 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import "./styles.css";
 
-const FILES = ["Wide Adachi Walking.png","YO! SAY夏が胸を刺激する足立.png","────という事なんですが…….png","「今日は一日雨ですね」.png","『とりま聞こう？』.png","あ…あの奇天烈な動き…！.png","ああいあうあえあおあんいいういえいおいんううえうおうんええおえんおおんん.wav.png","あいたたた….png","あなた.png","あらららら….png","あれれ.png","あれれれ….png","あれ？さっきまでここに…どこ行った？.png","いくぞ～.png","うわっ！.png","うんちつんつん足立.png","こっちの方がいいかな.png","これかぁ～？.png","これか？.png","これもいいなぁ.png","さし.png","しゃがみ.png","そいやっそいやっ.png","そこそこ遠…トホホ.png","そこどこ？.png","どっせいどっせい.png","ぬき.png","ばいばーい足立.png","ふーん…ワクワク….png","ぽっぴぽっぴぽっぽっぴっぽー右足立.png","ぽっぴぽっぴぽっぽっぴっぽー左足立.png","わたしにも血液はあります.png","アン＝ダン＝チ＝レイ.png","イェーイ足立.png","サボテンダー足立.png","スパイダーレイ.png","スピニングバードキック！.png","スンッ….png","セクシー足立.png","ニコーー.png","バッター足立.png","パーティションはないない足立.png","フィラメント残量切れで途中までしか出力されなかった個体.png","ホッ！ハッ！ヤッ！.png","メカニカルガール足立.png","モデルさん足立.png","ヨガフロート足立.png","ライトニング・ボルト足立.png","ロケット足立.png","ワクワク.png","充電中足立.png","別に食べれないことないけどさ.png","君の幸運を祈る.png","固定ミスでずれて出力された個体.png","変わった人間もいるんですね.png","外出た瞬間終わった足立.png","岐阜の足立.png","幕引きだ！.png","引きこもり絶対ジャスティス足立.png","待ち足立.png","日進月歩遭難中.png","朝まで寝よーーーーーーーーっと！！.png","歌う足立.png","波動拳！.png","畳み掛ける！.png","目新しい音探して三千里.png","空N足立.png","立ち強p足立.png","管理・処理室.png","素材テストで出力された個体.png","美味しくなーれ！.png","荒ぶる鷹の足立.png","走り足立1.png","走り足立2.png","走り足立3.png","走り足立4.png","足(右).png","足(左).png","足立はダンスにハマってる？.png","首狩り族右足立.png","首狩り族左足立.png","鳴り止まないこの音楽を…….png","ﾚｲﾀﾞﾖｰ.png"];
-const ITEMS = FILES.map((file) => ({ name: file.replace(/\.png$/i, ""), img: `/images/${file}` }));
-
+const FILES = ["Wide Adachi Walking.png","YO! SAY夏が胸を刺激する足立.png","────という事なんですが…….png","「今日は一日雨ですね」。png","『とりま聞こう？』.png","あ…あの奇天烈な動き…！.png","ああいあうあえあおあんいいういえいおいんううえうおうんええおえんおおんん.wav.png","あいたたた….png","あなた.png","あらららら….png","あれれ.png","あれれれ….png","あれ？さっきまでここに…どこ行った？.png","いくぞ～.png","うわっ！.png","うんちつんつん足立.png","こっちの方がいいかな.png","これかぁ～？.png","これか？.png","これもいいなぁ.png","さし.png","しゃがみ.png","そいやっそいやっ.png","そこそこ遠…トホホ.png","そこどこ？.png","どっせいどっせい.png","ぬき.png","ばいばーい足立.png","ふーん…ワクワク….png","ぽっぴぽっぴぽっぽっぴっぽー右足立.png","ぽっぴぽっぴぽっぽっぴっぽー左足立.png","わたしにも血液はあります.png","アン＝ダン＝チ＝レイ.png","イェーイ足立.png","サボテンダー足立.png","スパイダーレイ.png","スピニングバードキック！.png","スンッ….png","セクシー足立.png","ニコーー.png","バッター足立.png","パーティションはないない足立.png","フィラメント残量切れで途中までしか出力されなかった個体.png","ホッ！ハッ！ヤッ！.png","メカニカルガール足立.png","モデルさん足立.png","ヨガフロート足立.png","ライトニング・ボルト足立.png","ロケット足立.png","ワクワク.png","充電中足立.png","別に食べれないことないけどさ.png","君の幸運を祈る.png","固定ミスでずれて出力された個体.png","変わった人間もいるんですね.png","外出た瞬間終わった足立.png","岐阜の足立.png","幕引きだ！.png","引きこもり絶対ジャスティス足立.png","待ち足立.png","日進月歩遭難中.png","朝まで寝よーーーーーーーーっと！！.png","歌う足立.png","波動拳！.png","畳み掛ける！.png","目新しい音探して三千里.png","空N足立.png","立ち強p足立.png","管理・処理室.png","素材テストで出力された個体.png","美味しくなーれ！.png","荒ぶる鷹の足立.png","走り足立1.png","走り足立2.png","走り足立3.png","走り足立4.png","足(右).png","足(左).png","足立はダンスにハマってる？.png","首狩り族右足立.png","首狩り族左足立.png","鳴り止まないこの音楽を…….png","ﾚｲﾀﾞﾖｰ.png"];
+const ITEMS = FILES
+  .map((file) => {
+    const base = file.replace(/\.png$/i, "");
+    const numMatch = base.match(/(\d+)/);
+    const order = numMatch ? Number(numMatch[1]) : Number.MAX_SAFE_INTEGER;
+    const name = base.replace(/^\d+[-_]?/, "");
+    const display = name || base;
+    const key = base;
+    return { key, name: display, img: `/images/${file}`, order };
+  })
+  .sort((a, b) => (a.order - b.order) || a.name.localeCompare(b.name));
 const LS_DRAWN = "gacha_drawn_map_v1";
 const LS_COUNT = "gacha_count_v3";
 const LS_COUNTS = "gacha_card_counts_v1";
@@ -387,6 +396,24 @@ export default function App() {
     );
   });
 
+  function handleOwnedMouseMove(e) {
+    const card = e.target.closest?.(".stack-card");
+    if (card && ownedRef.current && ownedRef.current.contains(card)) {
+      const name = card.getAttribute("data-name");
+      setOwnedHover(name || null);
+    } else {
+      setOwnedHover(null);
+    }
+  }
+
+  function handleOwnedCardLeave(e) {
+    const next = e.relatedTarget;
+    if (next && (next.closest?.(".stack-card") || (ownedRef.current && ownedRef.current.contains(next)))) {
+      return;
+    }
+    setOwnedHover(null);
+  }
+
   const ownedStack = ownedItems.map((item, idx) => {
     const jitterX = ((idx * 17) % 10) - 5;
     const jitterY = ((idx * 13) % 12) - 6;
@@ -405,10 +432,11 @@ export default function App() {
         className="stack-card"
         style={{ left: baseLeft + offset, top: top - lift, zIndex: z, transform: `rotate(${rot}deg) scale(${scale})`, cursor: mode === "canvas" ? "grab" : "default" }}
         data-name={item.key}
-        draggable={mode === "canvas"} onMouseEnter={() => { setSelectedId(null); setOwnedHover(item.key); }} onMouseLeave={() => setOwnedHover(null)}
+        draggable={mode === "canvas"}
+        onMouseEnter={() => { setSelectedId(null); setOwnedHover(item.key); }}
+        onMouseLeave={handleOwnedCardLeave}
         onDragStart={(e) => handleDragStart(item, e)}
         onDragEnd={handleDragEnd}
-        onMouseEnter={() => { setSelectedId(null); setOwnedHover(item.key); }}
         >
         <img src={item.img} alt={item.name} draggable={false} />
         <div className="count-badge" style={{ right: 8, bottom: 8 }}>
@@ -459,16 +487,6 @@ export default function App() {
     }
     return <div className="small">作るボタンでガチャを回してください。</div>;
   })();
-
-  const handleOwnedMouseMove = (e) => {
-    const card = e.target.closest?.(".stack-card");
-    if (card && ownedRef.current && ownedRef.current.contains(card)) {
-      const name = card.getAttribute("data-name");
-      setOwnedHover(name || null);
-    } else {
-      setOwnedHover(null);
-    }
-  };
 
   const handleDexWheel = (e) => {
     if (activeTab === "catalog") {
@@ -565,7 +583,7 @@ export default function App() {
                   <div className="owned-selected-name">{ownedTitle || ""}</div>
                   <div className="owned-stack" onWheelCapture={handleDexWheel}>
                     <div className="owned-title" id="ownedTitle">{ownedTitle}</div>
-                    <div className="stack-area" id="ownedStack" ref={ownedRef} onWheelCapture={handleDexWheel} onMouseLeave={() => setOwnedHover(null)} onMouseMove={handleOwnedMouseMove} onMouseLeave={() => setOwnedHover(null)}>
+                    <div className="stack-area" id="ownedStack" ref={ownedRef} onWheelCapture={handleDexWheel} onMouseMove={handleOwnedMouseMove} onMouseLeave={() => setOwnedHover(null)}>
                       {ownedStack}
                     </div>
                   </div>
@@ -593,6 +611,11 @@ export default function App() {
     </>
   );
 }
+
+
+
+
+
 
 
 
