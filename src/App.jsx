@@ -7,6 +7,7 @@ const ITEMS = FILES.map((file) => ({ name: file.replace(/\.png$/i, ""), img: `/i
 const LS_DRAWN = "gacha_drawn_map_v1";
 const LS_COUNT = "gacha_count_v3";
 const LS_COUNTS = "gacha_card_counts_v1";
+const LS_CANVAS = "gacha_canvas_v1";
 
 const randItem = () => ITEMS[Math.floor(Math.random() * ITEMS.length)];
 
@@ -31,12 +32,15 @@ export default function App() {
   const [canvasItems, setCanvasItems] = useState([]);
   const [previewPos, setPreviewPos] = useState(null);
   const [previewItem, setPreviewItem] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const dexBodyRef = useRef(null);
   const historyRef = useRef(null);
   const ownedRef = useRef(null);
   const canvasRef = useRef(null);
   const dragItemRef = useRef(null);
+  const dragOffsetRef = useRef(null);
 
   const audioRefs = {
     bgm: useRef(null),
@@ -112,11 +116,39 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const saved = localStorage.getItem(LS_CANVAS);
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) setCanvasItems(parsed);
+    } catch {}
+  }, []);
+
+
+  useEffect(() => {
     localStorage.setItem(LS_DRAWN, JSON.stringify(drawnMap));
     localStorage.setItem(LS_COUNTS, JSON.stringify(countsMap));
     localStorage.setItem(LS_COUNT, String(drawCount));
   }, [drawnMap, countsMap, drawCount]);
+  useEffect(() => {
+    localStorage.setItem(LS_CANVAS, JSON.stringify(canvasItems));
+  }, [canvasItems]);
 
+
+
+  useEffect(() => {
+    if (mode !== "canvas") return;
+    const onKey = (e) => {
+      if (e.key === "Backspace" || e.key === "Delete") {
+        if (!selectedId) return;
+        e.preventDefault();
+        setCanvasItems((prev) => prev.filter((c) => c.id !== selectedId));
+        setSelectedId(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mode, selectedId]);
   useEffect(() => {
     if (!lastDrawnName) return;
     const raf = requestAnimationFrame(() => scrollToHistory(lastDrawnName));
@@ -139,10 +171,22 @@ export default function App() {
     body.scrollTo({ top, behavior: "smooth" });
   };
 
-  const handleDraw = () => {
+    const handleDraw = () => {
+    // ガチャ画面に戻すだけ（抽選はしない）
     setMode("normal");
     setPreviewPos(null);
     setPreviewItem(null);
+    setSelectedId(null);
+    setIsDragging(false);
+    setResult((prev) => (prev?.type === "item" ? prev : { type: "message" }));
+  };
+
+  const handleGacha = () => {
+    setMode("normal");
+    setPreviewPos(null);
+    setPreviewItem(null);
+    setSelectedId(null);
+    setIsDragging(false);
     playSound("se6", 0.8);
     const item = randItem();
     const now = Date.now();
@@ -157,9 +201,11 @@ export default function App() {
   const handleAssemble = () => {
     playSound("se6", 0.6);
     setMode("canvas");
-    setCanvasItems([]);
     setPreviewPos(null);
     setPreviewItem(null);
+    setSelectedId(null);
+    setIsDragging(false);
+    dragOffsetRef.current = null;
     setResult({ type: "canvas" });
   };
 
@@ -236,6 +282,45 @@ export default function App() {
     dragItemRef.current = null;
   };
 
+    const handleCanvasItemMouseDown = (item, e) => {
+    if (mode !== "canvas") return;
+    e.preventDefault();
+    e.stopPropagation();
+    const itemRect = e.currentTarget.getBoundingClientRect();
+    dragOffsetRef.current = {
+      offsetX: e.clientX - itemRect.left,
+      offsetY: e.clientY - itemRect.top,
+    };
+    setSelectedId(item.id);
+    setIsDragging(true);
+  };
+
+  const handleCanvasMouseMove = (e) => {
+    if (mode !== "canvas" || !isDragging || !selectedId) return;
+    const board = canvasRef.current;
+    const offset = dragOffsetRef.current;
+    if (!board || !offset) return;
+    const rect = board.getBoundingClientRect();
+    const x = ((e.clientX - rect.left - offset.offsetX) / rect.width) * 100;
+    const y = ((e.clientY - rect.top - offset.offsetY) / rect.height) * 100;
+    const clamp = (v) => Math.min(98, Math.max(0, v));
+    const nx = clamp(x);
+    const ny = clamp(y);
+    setCanvasItems((prev) => prev.map((c) => (c.id === selectedId ? { ...c, x: nx, y: ny } : c)));
+  };
+
+  const handleCanvasMouseUp = () => {
+    if (mode !== "canvas") return;
+    setIsDragging(false);
+    dragOffsetRef.current = null;
+  };
+
+  const handleCanvasBackgroundClick = (e) => {
+    if (mode !== "canvas") return;
+    if (e.target === e.currentTarget) {
+      setSelectedId(null);
+    }
+  };
   const historyList = ITEMS.map((item) => {
     const got = Boolean(drawnMap[item.name]);
     const displayName = got ? item.name : "???";
@@ -310,9 +395,9 @@ export default function App() {
   const resultNode = (() => {
     if (result.type === "canvas") return (
       <div className="canvas-blank" ref={canvasRef} onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop} onDragLeave={handleCanvasDragLeave}>
-        <div className="canvas-board" onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop} onDragLeave={handleCanvasDragLeave}>
+        <div className="canvas-board" onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop} onDragLeave={handleCanvasDragLeave} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp} onClick={handleCanvasBackgroundClick}>
           {canvasItems.map((c) => (
-            <div key={c.id} className="canvas-item" style={{ left: `${c.x}%`, top: `${c.y}%` }}>
+            <div key={c.id} className={`canvas-item ${selectedId === c.id ? "selected" : ""}`} style={{ left: `${c.x}%`, top: `${c.y}%` }} onMouseDown={(e) => handleCanvasItemMouseDown(c, e)}>
               <img src={c.img} alt={c.name} draggable={false} />
             </div>
           ))}
@@ -414,7 +499,7 @@ export default function App() {
                       value={bgmVol}
                       onChange={(e) => setBgmVol(Number(e.target.value))}
                     />
-                  </div>
+                  </div>`n                  <button className="toggle" onClick={handleGacha}>ガチャ</button>
                 </div>
               </div>
             </div>
@@ -463,6 +548,37 @@ export default function App() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
