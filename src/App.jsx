@@ -162,7 +162,7 @@ export default function App() {
 
   const addToCanvas = (item, xPerc, yPerc) => {
     if (mode !== "canvas") return;
-    const clamp = (v) => Math.min(96, Math.max(4, v));
+    const clamp = (v) => Math.min(98, Math.max(0, v));
     const x = xPerc == null ? Math.random() * 60 + 10 : clamp(xPerc);
     const y = yPerc == null ? Math.random() * 60 + 10 : clamp(yPerc);
     setCanvasItems((prev) => [
@@ -285,10 +285,9 @@ export default function App() {
     if (result.type === "canvas") return (
       <div className="canvas-blank" ref={canvasRef} onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}>
         <div className="canvas-board" onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop}>
-          {canvasItems.map((c) => (
+                    {canvasItems.map((c) => (
             <div key={c.id} className="canvas-item" style={{ left: `${c.x}%`, top: `${c.y}%` }}>
-              <img src={c.img} alt={c.name} />
-              <div className="canvas-caption">{c.name}</div>
+              <img src={c.img} alt={c.name} draggable={false} />
             </div>
           ))}
           {canvasItems.length === 0 && <div className="canvas-hint">所持カード一覧をクリックして貼り付け</div>}
@@ -433,6 +432,12 @@ export default function App() {
     </>
   );
 }
+
+
+
+
+
+
 
 
 
