@@ -113,7 +113,7 @@ const Badge = ({ got }) => (
   <span className={`badge ${got ? "got" : "locked"}`}>{got ? "入手済" : "未入手"}</span>
 );
 
-export default function App() {
+function App() {
   const [drawnMap, setDrawnMap] = useState({});
   const [countsMap, setCountsMap] = useState({});
   const [drawCount, setDrawCount] = useState(0);
@@ -132,6 +132,7 @@ export default function App() {
   const [previewItem, setPreviewItem] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [canvasAspect, setCanvasAspect] = useState(16 / 9);
 
   const dexBodyRef = useRef(null);
   const historyRef = useRef(null);
@@ -261,6 +262,18 @@ export default function App() {
     const timer = setTimeout(() => setShakeName(null), 350);
     return () => clearTimeout(timer);
   }, [shakeName]);
+  // キャンバスの縦横比を保持（バトル表示の中央正方形クロップ用）
+  useEffect(() => {
+    const updateAspect = () => {
+      const el = canvasRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.width && rect.height) setCanvasAspect(rect.width / rect.height);
+    };
+    updateAspect();
+    window.addEventListener("resize", updateAspect);
+    return () => window.removeEventListener("resize", updateAspect);
+  }, [mode, canvasItems.length]);
 
   const scrollToHistory = (name) => {
     const body = catalogRef.current || dexBodyRef.current;
@@ -346,12 +359,17 @@ export default function App() {
   const ownedItems = useMemo(() => ITEMS.filter((i) => countsMap[i.key]), [countsMap]);
   const hoveredIdx = ownedItems.findIndex((i) => i.key === ownedHover);
 
-  const clampPerc = (v) => Math.min(95, Math.max(5, v));
+  const CANVAS_MARGIN_X = 12;  // 横方向の余白％（飛び出し防止を強め）
+  const CANVAS_MARGIN_Y = 29;  // 縦方向の余白％（飛び出し防止を強め）
+  const clampX = (v) => Math.min(100 - CANVAS_MARGIN_X, Math.max(CANVAS_MARGIN_X, v));
+  const clampY = (v) => Math.min(100 - CANVAS_MARGIN_Y, Math.max(CANVAS_MARGIN_Y, v));
 
   const addToCanvas = (item, xPerc, yPerc) => {
     if (mode !== "canvas") return;
-    const x = xPerc == null ? Math.random() * 60 + 20 : clampPerc(xPerc);
-    const y = yPerc == null ? Math.random() * 60 + 20 : clampPerc(yPerc);
+    const spanX = 100 - CANVAS_MARGIN_X * 2;
+    const spanY = 100 - CANVAS_MARGIN_Y * 2;
+    const x = xPerc == null ? Math.random() * spanX + CANVAS_MARGIN_X : clampX(xPerc);
+    const y = yPerc == null ? Math.random() * spanY + CANVAS_MARGIN_Y : clampY(yPerc);
     setCanvasItems((prev) => [
       ...prev,
       {
@@ -394,9 +412,15 @@ export default function App() {
     const rect = board.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setPreviewPos({ x, y });
+    const halfX = (260 / rect.width) * 50;
+    const halfY = (260 / rect.height) * 50;
+    const marginX = Math.max(CANVAS_MARGIN_X, halfX);
+    const marginY = Math.max(CANVAS_MARGIN_Y, halfY);
+    const cx = Math.min(100 - marginX, Math.max(marginX, x));
+    const cy = Math.min(100 - marginY, Math.max(marginY, y));
+    setPreviewPos({ x: cx, y: cy });
     setPreviewItem(item);
-  };
+};
 
   const handleCanvasDragLeave = () => {
     if (mode !== "canvas") return;
@@ -414,11 +438,17 @@ export default function App() {
     const rect = board.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
-    addToCanvas(item, x, y);
+    const halfX = (260 / rect.width) * 50;
+    const halfY = (260 / rect.height) * 50;
+    const marginX = Math.max(CANVAS_MARGIN_X, halfX);
+    const marginY = Math.max(CANVAS_MARGIN_Y, halfY);
+    const cx = Math.min(100 - marginX, Math.max(marginX, x));
+    const cy = Math.min(100 - marginY, Math.max(marginY, y));
+    addToCanvas(item, cx, cy);
     setPreviewPos(null);
     setPreviewItem(null);
     dragItemRef.current = null;
-  };
+};
 
   const handleCanvasItemMouseDown = (item, e) => {
     if (mode !== "canvas") return;
@@ -429,10 +459,15 @@ export default function App() {
     const rect = board.getBoundingClientRect();
     const pointerX = ((e.clientX - rect.left) / rect.width) * 100;
     const pointerY = ((e.clientY - rect.top) / rect.height) * 100;
+    const itemRect = e.currentTarget.getBoundingClientRect();
     dragOffsetRef.current = {
       offsetX: pointerX - item.x,
       offsetY: pointerY - item.y,
+      halfW: (itemRect.width / rect.width) * 50,
+      halfH: (itemRect.height / rect.height) * 50,
     };
+    window.addEventListener("mousemove", handleCanvasMouseMove);
+    window.addEventListener("mouseup", handleCanvasMouseUp);
     setSelectedId(item.id);
     setIsDragging(true);
   };
@@ -477,8 +512,10 @@ export default function App() {
     if (!offset || !rect) return;
     const pointerX = ((e.clientX - rect.left) / rect.width) * 100;
     const pointerY = ((e.clientY - rect.top) / rect.height) * 100;
-    const nx = clampPerc(pointerX - offset.offsetX);
-    const ny = clampPerc(pointerY - offset.offsetY);
+    const marginX = Math.max(CANVAS_MARGIN_X, offset.halfW ?? CANVAS_MARGIN_X);
+    const marginY = Math.max(CANVAS_MARGIN_Y, offset.halfH ?? CANVAS_MARGIN_Y);
+    const nx = Math.min(100 - marginX, Math.max(marginX, pointerX - offset.offsetX));
+    const ny = Math.min(100 - marginY, Math.max(marginY, pointerY - offset.offsetY));
     setCanvasItems((prev) => prev.map((c) => (c.id === selectedId ? { ...c, x: nx, y: ny } : c)));
   };
 
@@ -488,6 +525,8 @@ export default function App() {
     dragOffsetRef.current = null;
     resizingRef.current = false;
     resizeStartRef.current = null;
+    window.removeEventListener("mousemove", handleCanvasMouseMove);
+    window.removeEventListener("mouseup", handleCanvasMouseUp);
   };
 
   const handleCanvasBackgroundClick = (e) => {
@@ -596,7 +635,11 @@ export default function App() {
             <div
               key={c.id}
               className="battle-item"
-              style={{ left: `${c.x}%`, top: `${c.y}%`, "--scale": c.scale || 1 }}
+              style={{
+                left: `${c.x}%`,
+                top: `${c.y}%`,
+                "--scale": c.scale || 1,
+              }}
             >
               <img src={c.img} alt={c.name} draggable={false} />
             </div>
@@ -614,7 +657,6 @@ export default function App() {
           onDragLeave={handleCanvasDragLeave}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
-          onMouseLeave={handleCanvasMouseUp}
           onClick={handleCanvasBackgroundClick}
         >
           {canvasItems.map((c) => (
@@ -791,13 +833,7 @@ export default function App() {
     </>
   );
 }
-
-
-
-
-
-
-
+export default App;
 
 
 
