@@ -627,26 +627,43 @@ function App() {
   const lookupStats = (keyOrName) => ITEMS.find((i) => i.key === keyOrName || i.name === keyOrName)?.stats;
   const ownedStats = selectedId ? lookupStats(canvasItems.find((c) => c.id === selectedId)?.name) : lookupStats(ownedHover);
 
-  const resultNode = (() => {
-    if (mode === "battle") return (
-      <div className="battle-wrap">
-        <div className="battle-scene">
-          {canvasItems.map((c) => (
-            <div
-              key={c.id}
-              className="battle-item"
-              style={{
-                left: `${c.x}%`,
-                top: `${c.y}%`,
-                "--scale": c.scale || 1,
-              }}
-            >
-              <img src={c.img} alt={c.name} draggable={false} />
+    const resultNode = (() => {
+    if (mode === "battle") {
+      const r = canvasAspect || 1;
+      let clipStyle = {};
+      let guideStyle = { position: "absolute", inset: "0%" };
+      if (r > 1) {
+        const m = (1 - 1 / r) * 50;
+        clipStyle = { clipPath: `inset(0% ${m}% 0% ${m}%)` };
+        guideStyle = { position: "absolute", top: "0%", bottom: "0%", left: `${m}%`, right: `${m}%` };
+      } else if (r < 1) {
+        const m = ((1 / r) - 1) * 50;
+        clipStyle = { clipPath: `inset(${m}% 0% ${m}% 0%)` };
+        guideStyle = { position: "absolute", top: `${m}%`, bottom: `${m}%`, left: "0%", right: "0%" };
+      }
+      return (
+        <div className="battle-wrap">
+          <div className="battle-scene">
+            <div className="battle-clip" style={clipStyle}>
+              <div className="battle-guide" style={guideStyle}></div>
+              {canvasItems.map((c) => (
+                <div
+                  key={c.id}
+                  className="battle-item"
+                  style={{
+                    left: `${c.x}%`,
+                    top: `${c.y}%`,
+                    "--scale": c.scale || 1,
+                  }}
+                >
+                  <img src={c.img} alt={c.name} draggable={false} />
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
 
     if (result.type === "canvas") return (
       <div className="canvas-blank" ref={canvasRef} onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop} onDragLeave={handleCanvasDragLeave}>
@@ -834,6 +851,10 @@ function App() {
   );
 }
 export default App;
+
+
+
+
 
 
 
