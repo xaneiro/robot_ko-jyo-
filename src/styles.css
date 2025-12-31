@@ -267,3 +267,6 @@ h1 { font-size: 20px; margin: 0 0 16px; font-weight: 800; letter-spacing:.04em; 
 
 
 .battle-clip.left-offset { transform: translateX(-25%); }
+
+.canvas-battle-guide { position:absolute; pointer-events:none; border:2px dashed rgba(77,225,255,0.65); border-radius:8px; box-shadow: 0 0 0 1px rgba(0,0,0,0.15); inset:auto; }
+

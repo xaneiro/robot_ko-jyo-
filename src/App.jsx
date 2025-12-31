@@ -627,7 +627,20 @@ function App() {
   const lookupStats = (keyOrName) => ITEMS.find((i) => i.key === keyOrName || i.name === keyOrName)?.stats;
   const ownedStats = selectedId ? lookupStats(canvasItems.find((c) => c.id === selectedId)?.name) : lookupStats(ownedHover);
 
-    const resultNode = (() => {
+    const squareGuide = (r) => {
+    if (!r) return { top: "0%", bottom: "0%", left: "0%", right: "0%" };
+    if (r > 1) {
+      const m = (1 - 1 / r) * 50;
+      return { top: "0%", bottom: "0%", left: `${m}%`, right: `${m}%` };
+    }
+    if (r < 1) {
+      const m = ((1 / r) - 1) * 50;
+      return { top: `${m}%`, bottom: `${m}%`, left: "0%", right: "0%" };
+    }
+    return { top: "0%", bottom: "0%", left: "0%", right: "0%" };
+  };
+
+  const resultNode = (() => {
     if (mode === "battle") {
       const r = canvasAspect || 1;
       let clipStyle = {};
@@ -693,6 +706,7 @@ function App() {
             </div>
           )}
           {canvasItems.length === 0 && <div className="canvas-hint">所持カード一覧をクリックして貼り付け</div>}
+          <div className="canvas-battle-guide" style={squareGuide(canvasAspect)}></div>
         </div>
       </div>
     );
@@ -851,6 +865,7 @@ function App() {
   );
 }
 export default App;
+
 
 
 
