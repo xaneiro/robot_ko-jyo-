@@ -669,8 +669,26 @@ function App() {
         clipStyle = { clipPath: `inset(${m}% 0% ${m}% 0%)` };
         guideStyle = { position: "absolute", top: `${m}%`, bottom: `${m}%`, left: "0%", right: "0%" };
       }
+      const gaugeList = [
+        { key: "red", label: STAT_LABELS.red, value: canvasTotals.red, cls: "red" },
+        { key: "orange", label: STAT_LABELS.orange, value: canvasTotals.orange, cls: "orange" },
+        { key: "green", label: STAT_LABELS.green, value: canvasTotals.green, cls: "green" },
+        { key: "cyan", label: STAT_LABELS.cyan, value: canvasTotals.cyan, cls: "cyan" },
+      ];
+      const maxGauge = Math.max(1, ...gaugeList.map((g) => g.value || 0));
       return (
         <div className="battle-wrap">
+          <div className="battle-gauges">
+            {gaugeList.map((g) => (
+              <div className="gauge-row" key={g.key}>
+                <div className="gauge-label">{g.label}</div>
+                <div className="gauge-bar">
+                  <div className={`gauge-fill ${g.cls}`} style={{ width: `${(g.value / maxGauge) * 100}%` }}></div>
+                </div>
+                <div className="gauge-val">{g.value}</div>
+              </div>
+            ))}
+          </div>
           <div className="battle-scene">
             <div className="battle-clip left-offset" style={clipStyle}>
               <div className="battle-guide" style={guideStyle}></div>
@@ -881,6 +899,7 @@ function App() {
   );
 }
 export default App;
+
 
 
 
