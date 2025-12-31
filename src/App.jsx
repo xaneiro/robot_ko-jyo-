@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import "./styles.css";
+const STAT_LABELS = { red: "攻撃力", orange: "滅ぼし力", green: "体力", cyan: "行動力" };
 
 
 const FILES = [
@@ -128,6 +129,7 @@ function App() {
   const [drawPulse, setDrawPulse] = useState(0);
   const [ownedHover, setOwnedHover] = useState(null);
   const [canvasItems, setCanvasItems] = useState([]);
+  const [hoverStat, setHoverStat] = useState("");
   const [previewPos, setPreviewPos] = useState(null);
   const [previewItem, setPreviewItem] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
@@ -627,6 +629,19 @@ function App() {
   const lookupStats = (keyOrName) => ITEMS.find((i) => i.key === keyOrName || i.name === keyOrName)?.stats;
   const ownedStats = selectedId ? lookupStats(canvasItems.find((c) => c.id === selectedId)?.name) : lookupStats(ownedHover);
 
+  const canvasTotals = useMemo(() => {
+    return canvasItems.reduce((acc, c) => {
+      const st = lookupStats(c.name);
+      if (st) {
+        acc.red += st.red || 0;
+        acc.orange += st.orange || 0;
+        acc.green += st.green || 0;
+        acc.cyan += st.cyan || 0;
+      }
+      return acc;
+    }, { red: 0, orange: 0, green: 0, cyan: 0 });
+  }, [canvasItems]);
+
     const squareGuide = (r) => {
     if (!r) return { top: "0%", bottom: "0%", left: "0%", right: "0%" };
     if (r > 1) {
@@ -785,10 +800,11 @@ function App() {
                   </div>
                 </div>
                 <div className="console">
-                  <div className="lamp red"></div>
-                  <div className="lamp amber"></div>
-                  <div className="lamp green"></div>
-                  <div className="lamp blue"></div>
+                  <div className="lamp red" onMouseEnter={() => setHoverStat(`攻撃力: ${canvasTotals.red}`)} onMouseLeave={() => setHoverStat("")} title={`攻撃力: ${canvasTotals.red}`}></div>
+                  <div className="lamp amber" onMouseEnter={() => setHoverStat(`滅ぼし力: ${canvasTotals.orange}`)} onMouseLeave={() => setHoverStat("")} title={`滅ぼし力: ${canvasTotals.orange}`}></div>
+                  <div className="lamp green" onMouseEnter={() => setHoverStat(`体力: ${canvasTotals.green}`)} onMouseLeave={() => setHoverStat("")} title={`体力: ${canvasTotals.green}`}></div>
+                  <div className="lamp blue" onMouseEnter={() => setHoverStat(`行動力: ${canvasTotals.cyan}`)} onMouseLeave={() => setHoverStat("")} title={`行動力: ${canvasTotals.cyan}`}></div>
+                  <div className="stat-hover-text">{hoverStat}</div>
                   <button className="toggle" onClick={() => setBgmOn((v) => !v)}>{bgmOn ? "BGM: ON" : "BGM: OFF"}</button>
                   <div className="volume">
                     <label htmlFor="vol">音量</label>
@@ -828,10 +844,10 @@ function App() {
                   <div className="owned-selected-stats">
                     {ownedStats ? (
                       <div className="stat-row">
-                        <div className="stat-led red"><span className="dot"></span><span>{ownedStats.red}</span></div>
-                        <div className="stat-led orange"><span className="dot"></span><span>{ownedStats.orange}</span></div>
-                        <div className="stat-led green"><span className="dot"></span><span>{ownedStats.green}</span></div>
-                        <div className="stat-led cyan"><span className="dot"></span><span>{ownedStats.cyan}</span></div>
+                        <div className="stat-led red"><span className="dot"></span><span>{STAT_LABELS.red}: {ownedStats.red}</span></div>
+                        <div className="stat-led orange"><span className="dot"></span><span>{STAT_LABELS.orange}: {ownedStats.orange}</span></div>
+                        <div className="stat-led green"><span className="dot"></span><span>{STAT_LABELS.green}: {ownedStats.green}</span></div>
+                        <div className="stat-led cyan"><span className="dot"></span><span>{STAT_LABELS.cyan}: {ownedStats.cyan}</span></div>
                       </div>
                     ) : ""}
                   </div>
@@ -865,6 +881,16 @@ function App() {
   );
 }
 export default App;
+
+
+
+
+
+
+
+
+
+
 
 
 
