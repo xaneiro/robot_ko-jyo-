@@ -644,7 +644,7 @@ function App() {
       return (
         <div className="battle-wrap">
           <div className="battle-scene">
-            <div className="battle-clip" style={clipStyle}>
+            <div className="battle-clip left-offset" style={clipStyle}>
               <div className="battle-guide" style={guideStyle}></div>
               {canvasItems.map((c) => (
                 <div
@@ -851,6 +851,10 @@ function App() {
   );
 }
 export default App;
+
+
+
+
 
 
 

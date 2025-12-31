@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg1:#2d333b;
   --bg2:#3c434c;
   --card:#111b29;
@@ -227,7 +227,7 @@ h1 { font-size: 20px; margin: 0 0 16px; font-weight: 800; letter-spacing:.04em; 
 
 
 
-.battle-scene { position: relative; width: 100%; min-height: 420px; height: 420px; background: #ffffff; border-radius: 8px; overflow: hidden; margin: 0 auto; box-shadow: inset 0 1px 0 rgba(0,0,0,0.05); }
+.battle-scene { position: relative; width: 100%; min-height: 420px; height: 420px; background: #ffffff; border-radius: 8px; overflow: hidden; margin: 0 auto; box-shadow: inset 0 1px 0 rgba(0,0,0,0.05); display:flex; align-items:center; justify-content:flex-start; }
 .battle-item { position: absolute; padding: 0; transform: translate(-50%, -50%) scale(var(--scale, 1)); transform-origin: center center; }
 .battle-item img { display: block; max-width: 260px; max-height: 260px; object-fit: contain; background: transparent; }
 
@@ -251,7 +251,7 @@ h1 { font-size: 20px; margin: 0 0 16px; font-weight: 800; letter-spacing:.04em; 
 
 
 
-.battle-clip { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
+.battle-clip { position: relative; width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
 .battle-clip::after { content:""; position:absolute; inset:0; border:2px dashed rgba(77,225,255,0.6); border-radius:8px; pointer-events:none; box-shadow: 0 0 0 1px rgba(0,0,0,0.15); z-index:2; }
 
 
@@ -262,3 +262,8 @@ h1 { font-size: 20px; margin: 0 0 16px; font-weight: 800; letter-spacing:.04em; 
 
 .battle-guide { border: 2px dashed rgba(77,225,255,0.6); border-radius: 8px; box-shadow: 0 0 0 1px rgba(0,0,0,0.15); pointer-events: none; z-index: 2; }
 
+
+
+
+
+.battle-clip.left-offset { transform: translateX(-25%); }
