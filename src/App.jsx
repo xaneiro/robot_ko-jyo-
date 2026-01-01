@@ -697,7 +697,7 @@ function App() {
               ))}
             </div>
             <div className="human-meter">
-              <span className="human-label">????????</span>
+              <span className="human-label">人類滅ぼしゲージ</span>
               <div className="human-bar">
                 <div className="human-fill" style={{ width: `${humanGaugeVal}%` }}></div>
               </div>
