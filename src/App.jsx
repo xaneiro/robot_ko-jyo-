@@ -128,6 +128,7 @@ function App() {
   const [shakeName, setShakeName] = useState(null);
   const [drawPulse, setDrawPulse] = useState(0);
   const [ownedHover, setOwnedHover] = useState(null);
+  const [enemyPlaced, setEnemyPlaced] = useState(false);
   const [canvasItems, setCanvasItems] = useState([]);
   const [hoverStat, setHoverStat] = useState("");
   const [previewPos, setPreviewPos] = useState(null);
@@ -289,6 +290,7 @@ function App() {
 
   const handleDraw = () => {
     setMode("normal");
+    setEnemyPlaced(false);
     setPreviewPos(null);
     setPreviewItem(null);
     setSelectedId(null);
@@ -336,6 +338,7 @@ function App() {
   const handleAssemble = () => {
     playSound("se6", 0.6);
     setMode("canvas");
+    setEnemyPlaced(false);
     setPreviewPos(null);
     setPreviewItem(null);
     setSelectedId(null);
@@ -349,6 +352,7 @@ function App() {
   const handleBattle = () => {
     playSound("se6", 0.7);
     setMode("battle");
+    setEnemyPlaced(false);
     setPreviewPos(null);
     setPreviewItem(null);
     setSelectedId(null);
@@ -707,6 +711,14 @@ function App() {
               ))}
             </div>
           </div>
+        {!enemyPlaced && (
+          <button className="battle-start-btn" onClick={() => setEnemyPlaced(true)}>戦闘開始！</button>
+        )}
+        {enemyPlaced && (
+          <div className="battle-enemy">
+            <img src="/enemy/人類.png" alt="人類" />
+          </div>
+        )}
         </div>
       );
     }
@@ -899,6 +911,12 @@ function App() {
   );
 }
 export default App;
+
+
+
+
+
+
 
 
 
