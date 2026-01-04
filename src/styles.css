@@ -338,3 +338,6 @@ h1 { font-size: 20px; margin: 0 0 16px; font-weight: 800; letter-spacing:.04em; 
 .human-fill { position:absolute; left:0; top:0; bottom:0; border-radius:999px; background: linear-gradient(90deg, #ffc27a, #ff8c1a); box-shadow:0 0 8px #ff8c1a; }
 .human-val { font-size:12px; font-weight:800; color:#ffe6c7; text-shadow:0 0 6px rgba(0,0,0,0.5); }
 
+
+.canvas-count-badge { position:absolute; top:6px; right:10px; padding:4px 10px; border-radius:999px; background: rgba(15,15,18,0.85); color:#ffe6c7; font-weight:900; font-size:12px; border:1px solid rgba(255,140,0,0.7); box-shadow: 0 2px 8px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.15); z-index:5; }
+

@@ -107,6 +107,9 @@ const LS_DRAWN = "gacha_drawn_map_v1";
 const LS_COUNT = "gacha_count_v3";
 const LS_COUNTS = "gacha_card_counts_v1";
 const LS_CANVAS = "gacha_canvas_v1";
+const MATERIAL_COST = 100;
+const INITIAL_MATERIAL = 150;
+const MAX_CANVAS_ITEMS = 20;
 
 const randItem = () => ITEMS[Math.floor(Math.random() * ITEMS.length)];
 
@@ -128,6 +131,7 @@ function App() {
   const [shakeName, setShakeName] = useState(null);
   const [drawPulse, setDrawPulse] = useState(0);
   const [ownedHover, setOwnedHover] = useState(null);
+  const [materials, setMaterials] = useState(INITIAL_MATERIAL);
   const [enemyPlaced, setEnemyPlaced] = useState(false);
   const [canvasItems, setCanvasItems] = useState([]);
   const [hoverStat, setHoverStat] = useState("");
@@ -219,9 +223,12 @@ function App() {
     setDrawnMap({});
     setCountsMap({});
     setDrawCount(0);
+    setMaterials(INITIAL_MATERIAL);
   }, []);
 
   useEffect(() => {
+    const savedMat = localStorage.getItem("materials");
+    if (savedMat) setMaterials(Number(savedMat));
     const saved = localStorage.getItem(LS_CANVAS);
     if (!saved) return;
     try {
@@ -238,6 +245,7 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem(LS_CANVAS, JSON.stringify(canvasItems));
+    localStorage.setItem("materials", String(materials));
   }, [canvasItems]);
 
   useEffect(() => {
@@ -304,16 +312,24 @@ function App() {
     setPreviewItem(null);
     setSelectedId(null);
     setIsDragging(false);
-    playSound("se6", 0.8);
-    const item = randItem();
-    const now = Date.now();
-    setDrawnMap((prev) => ({ ...prev, [item.key]: prev[item.key] || now }));
-    setCountsMap((prev) => ({ ...prev, [item.key]: (prev[item.key] || 0) + 1 }));
-    setDrawCount((c) => c + 1);
-    setResult({ type: "item", item, at: now, count: drawCount + 1 });
-    setLastDrawnName(item.key);
-    setDrawPulse((p) => p + 1);
-  };
+    setMaterials((m) => {
+      if (m < MATERIAL_COST) {
+        playSound("se5", 0.75);
+        return m;
+      }
+      playSound("se6", 0.8);
+      const item = randItem();
+      const now = Date.now();
+      setDrawnMap((prev) => ({ ...prev, [item.key]: prev[item.key] || now }));
+      setCountsMap((prev) => ({ ...prev, [item.key]: (prev[item.key] || 0) + 1 }));
+      const nextCount = drawCount + 1;
+      setDrawCount(nextCount);
+      setResult({ type: "item", item, at: now, count: nextCount });
+      setLastDrawnName(item.key);
+      setDrawPulse((p) => p + 1);
+      return m - MATERIAL_COST;
+    });
+  };;
 
   const handleUnlockAll = () => {
     const now = Date.now();
@@ -372,6 +388,10 @@ function App() {
 
   const addToCanvas = (item, xPerc, yPerc) => {
     if (mode !== "canvas") return;
+    if (canvasItems.length >= MAX_CANVAS_ITEMS) {
+      playSound("se5", 0.75);
+      return;
+    }
     const spanX = 100 - CANVAS_MARGIN_X * 2;
     const spanY = 100 - CANVAS_MARGIN_Y * 2;
     const x = xPerc == null ? Math.random() * spanX + CANVAS_MARGIN_X : clampX(xPerc);
@@ -619,6 +639,12 @@ function App() {
         onMouseLeave={handleOwnedCardLeave}
         onDragStart={(e) => handleDragStart(item, e)}
         onDragEnd={handleDragEnd}
+        onClick={() => {
+          if (mode === "canvas") {
+            addToCanvas(item);
+            playSound("se4", 0.65);
+          }
+        }}
       >
         <img src={item.img} alt={item.name} draggable={false} />
         <div className="count-badge" style={{ right: 8, bottom: 8 }}>
@@ -633,6 +659,8 @@ function App() {
   const lookupStats = (keyOrName) => ITEMS.find((i) => i.key === keyOrName || i.name === keyOrName)?.stats;
   const ownedStats = selectedId ? lookupStats(canvasItems.find((c) => c.id === selectedId)?.name) : lookupStats(ownedHover);
 
+
+  const canvasCountLabel = `${String(Math.min(canvasItems.length, MAX_CANVAS_ITEMS)).padStart(2, "0")}/${MAX_CANVAS_ITEMS}`;
   const canvasTotals = useMemo(() => {
     return canvasItems.reduce((acc, c) => {
       const st = lookupStats(c.name);
@@ -682,6 +710,8 @@ function App() {
       const maxGauge = Math.max(1, ...gaugeList.map((g) => g.value || 0));
       const humanGaugeMax = 100;
       const humanGaugeVal = Math.min(humanGaugeMax, Math.max(0, canvasTotals.orange));
+      const healthVal = canvasTotals.green;
+      const canBattle = healthVal > 0;
       return (
         <div className="battle-wrap">
           <div className="battle-gauges">
@@ -723,7 +753,17 @@ function App() {
             </div>
           </div>
         {!enemyPlaced && (
-          <button className="battle-start-btn" onClick={() => setEnemyPlaced(true)}>戦闘開始！</button>
+          <button
+            className={`battle-start-btn ${!canBattle ? "disabled" : ""}`}
+            aria-disabled={!canBattle}
+            onClick={() => {
+              if (!canBattle) {
+                playSound("se5", 0.75);
+                return;
+              }
+              setEnemyPlaced(true);
+            }}
+          >戦闘開始！</button>
         )}
         {enemyPlaced && (
           <div className="battle-enemy">
@@ -836,7 +876,10 @@ function App() {
               <div className="monitor-bezel">
                 <div className={`screen-inner ${mode === "canvas" ? "canvas-mode" : ""} ${mode === "battle" ? "battle-mode" : ""}`} onDragOver={mode === "canvas" ? handleCanvasDragOver : undefined} onDrop={mode === "canvas" ? handleCanvasDrop : undefined}>
                   {mode === "normal" && <div className="screen-noise"></div>}
-                  <div className={`result ${mode === "canvas" ? "canvas-mode" : ""}`} id="result" onDragOver={mode === "canvas" ? handleCanvasDragOver : undefined} onDrop={mode === "canvas" ? handleCanvasDrop : undefined}>
+                  {mode === "canvas" && (
+                  <div className="canvas-count-badge">{canvasCountLabel}</div>
+                )}
+                <div className={`result ${mode === "canvas" ? "canvas-mode" : ""}`} id="result" onDragOver={mode === "canvas" ? handleCanvasDragOver : undefined} onDrop={mode === "canvas" ? handleCanvasDrop : undefined}>
                     {resultNode}
                   </div>
                 </div>
@@ -859,7 +902,8 @@ function App() {
                       onChange={(e) => setBgmVol(Number(e.target.value))}
                     />
                   </div>
-                  <button className="toggle" onClick={handleGacha}>ガチャ</button>
+                  <button className="toggle" onClick={handleGacha} disabled={materials < MATERIAL_COST}>ガチャ</button>
+                  <span className="material-info">素材: {materials}</span>
                   <button className="toggle" onClick={handleUnlockAll}>全キャラ入手</button>
                 </div>
               </div>
@@ -922,8 +966,6 @@ function App() {
   );
 }
 export default App;
-
-
 
 
 
