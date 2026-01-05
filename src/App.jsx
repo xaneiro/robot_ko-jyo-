@@ -318,7 +318,9 @@ function App() {
         return m;
       }
       playSound("se6", 0.8);
-      const item = randItem();
+      const isFirstDraw = drawCount === 0;
+      const firstItem = ITEMS.find((i) => i.key.startsWith("00"));
+      const item = isFirstDraw && firstItem ? firstItem : randItem();
       const now = Date.now();
       setDrawnMap((prev) => ({ ...prev, [item.key]: prev[item.key] || now }));
       setCountsMap((prev) => ({ ...prev, [item.key]: (prev[item.key] || 0) + 1 }));
@@ -966,6 +968,7 @@ function App() {
   );
 }
 export default App;
+
 
 
 
