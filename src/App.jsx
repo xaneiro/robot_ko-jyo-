@@ -98,8 +98,15 @@ const ITEMS = FILES.map((file, idx) => {
   const order = m ? Number(m[1]) : 1000 + idx;
   const key = base;
   const name = base;
-  const stats = { red: 10, orange: 10, green: 100, cyan: 10 };
-  return { key, name, img: `/images/${file}`, order, idx, stats };
+  let stats = { red: 10, orange: 10, green: 100, cyan: 10 };
+  let rarity;
+  let skill;
+  if (file.startsWith("00メカニカルガール足立")) {
+    rarity = "⭐︎";
+    stats = { red: 10, orange: 10, green: 100, cyan: 20 };
+    skill = { name: "人類滅ぼしパンチ", desc: "攻撃力依存、200%のダメージ" };
+  }
+  return { key, name, img: `/images/${file}`, order, idx, stats, rarity, skill };
 }).sort((a, b) => (a.order === b.order ? a.idx - b.idx : a.order - b.order));
 
 
@@ -659,8 +666,9 @@ function App() {
   const hoveredName = ownedHover ? (ITEMS.find((i) => i.key === ownedHover)?.name || "") : "";
   const ownedTitle = selectedId ? (canvasItems.find((c) => c.id === selectedId)?.name || "") : hoveredName;
   const lookupStats = (keyOrName) => ITEMS.find((i) => i.key === keyOrName || i.name === keyOrName)?.stats;
+  const lookupItem = (keyOrName) => ITEMS.find((i) => i.key === keyOrName || i.name === keyOrName);
   const ownedStats = selectedId ? lookupStats(canvasItems.find((c) => c.id === selectedId)?.name) : lookupStats(ownedHover);
-
+  const ownedMeta = selectedId ? lookupItem(canvasItems.find((c) => c.id === selectedId)?.name) : lookupItem(ownedHover);
 
   const canvasCountLabel = `${String(Math.min(canvasItems.length, MAX_CANVAS_ITEMS)).padStart(2, "0")}/${MAX_CANVAS_ITEMS}`;
   const canvasTotals = useMemo(() => {
@@ -929,13 +937,21 @@ function App() {
                 <div className={`tab-panel ${activeTab === "owned" ? "active" : ""}`} id="tab-owned" onWheelCapture={handleDexWheel}>
                   <div className="owned-selected-name">{ownedTitle || ""}</div>
                   <div className="owned-selected-stats">
-                    {ownedStats ? (
-                      <div className="stat-row">
-                        <div className="stat-led red"><span className="dot"></span><span>{STAT_LABELS.red}: {ownedStats.red}</span></div>
-                        <div className="stat-led orange"><span className="dot"></span><span>{STAT_LABELS.orange}: {ownedStats.orange}</span></div>
-                        <div className="stat-led green"><span className="dot"></span><span>{STAT_LABELS.green}: {ownedStats.green}</span></div>
-                        <div className="stat-led cyan"><span className="dot"></span><span>{STAT_LABELS.cyan}: {ownedStats.cyan}</span></div>
-                      </div>
+                    {(ownedStats || ownedMeta) ? (
+                      <>
+                        {ownedStats ? (
+                          <div className="stat-row">
+                            <div className="stat-led red"><span className="dot"></span><span>{STAT_LABELS.red}: {ownedStats.red}</span></div>
+                            <div className="stat-led orange"><span className="dot"></span><span>{STAT_LABELS.orange}: {ownedStats.orange}</span></div>
+                            <div className="stat-led green"><span className="dot"></span><span>{STAT_LABELS.green}: {ownedStats.green}</span></div>
+                            <div className="stat-led cyan"><span className="dot"></span><span>{STAT_LABELS.cyan}: {ownedStats.cyan}</span></div>
+                          </div>
+                        ) : null}
+                        <div className="stat-meta">
+                          {ownedMeta?.rarity ? <span className="rarity">レアリティ: {ownedMeta.rarity}</span> : null}
+                          {ownedMeta?.skill ? <span className="skill">滅ぼしスキル: {ownedMeta.skill.name}（{ownedMeta.skill.desc}）</span> : null}
+                        </div>
+                      </>
                     ) : ""}
                   </div>
                   <div className="owned-stack" onWheelCapture={handleDexWheel}>
@@ -968,6 +984,8 @@ function App() {
   );
 }
 export default App;
+
+
 
 
 
