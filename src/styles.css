@@ -341,3 +341,29 @@ h1 { font-size: 20px; margin: 0 0 16px; font-weight: 800; letter-spacing:.04em; 
 
 .canvas-count-badge { position:absolute; top:6px; right:10px; padding:4px 10px; border-radius:999px; background: rgba(15,15,18,0.85); color:#ffe6c7; font-weight:900; font-size:12px; border:1px solid rgba(255,140,0,0.7); box-shadow: 0 2px 8px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.15); z-index:5; }
 
+.owned-selected-name { display:flex; flex-direction:column; gap:2px; }
+.owned-rarity { font-size:12px; color:#f5c16c; font-weight:700; }
+.owned-title { font-size:16px; font-weight:700; color:#eaf6ff; }
+.draw-info { display:flex; flex-direction:column; gap:4px; }
+.draw-rare-line { color:#f5c16c; font-weight:700; }
+.skill-line { margin-top:4px; }
+.stat-meta { margin-top:4px; display:flex; flex-direction:column; gap:2px; color:#eaf6ff; }
+.owned-selected-stats { margin-top: 8px; }
+.stat-row { margin-top: 4px; }
+.enemy-hp { display:flex; align-items:center; gap:8px; margin:8px 0; }
+.enemy-hp-bar { position: relative; width: 180px; height: 10px; border-radius: 6px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.enemy-hp-fill { position: absolute; left:0; top:0; bottom:0; background: linear-gradient(90deg, #ff7b7b, #d12b2b); }
+.enemy-hp-text { font-size: 12px; color: #eaf6ff; font-weight: 700; }
+.enemy-dmg { color: #ffd1d1; font-size: 12px; font-weight: 800; text-shadow: 0 0 6px rgba(0,0,0,0.4); }
+.enemy-hp.hud { position:absolute; top:8px; right:12px; display:flex; align-items:center; gap:8px; background: rgba(0,0,0,0.35); padding:6px 8px; border-radius:8px; }
+.enemy-hp.hud.hud-top { top: 8px; right: 12px; z-index: 5; }
+.enemy-hp.hud { display:flex; align-items:center; gap:8px; background: rgba(0,0,0,0.35); padding:6px 8px; border-radius:8px; position:absolute; }
+.enemy-hp.hud.hud-top-out { position:absolute; top:8px; right:12px; z-index: 8; }
+.ally-hp.hud { position:absolute; display:flex; align-items:center; gap:8px; background: rgba(0,0,0,0.35); padding:6px 8px; border-radius:8px; }
+.ally-hp.hud.hud-top-left { top:8px; left:12px; z-index:8; }
+.ally-hp-bar { position: relative; width: 180px; height: 10px; border-radius: 6px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.ally-hp-fill { position: absolute; left:0; top:0; bottom:0; background: linear-gradient(90deg, #9cf0a0, #3ba55b); }
+.ally-hp-text { font-size: 12px; color: #eaf6ff; font-weight: 700; }
+.action-progress { position: relative; width: 120px; height: 6px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; margin-top: 4px; }
+.action-fill { position:absolute; left:0; top:0; bottom:0; background: linear-gradient(90deg, #6cc7ff, #2f6b9c); }
+.action-fill.enemy { background: linear-gradient(90deg, #ffaf7b, #d45a2b); }

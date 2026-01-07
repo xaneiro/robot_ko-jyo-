@@ -147,6 +147,22 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [canvasAspect, setCanvasAspect] = useState(16 / 9);
+  const [humanGauge, setHumanGauge] = useState(0);
+  const [humanPoints, setHumanPoints] = useState(0);
+  const [enemyHP, setEnemyHP] = useState(100);
+  const [enemyMaxHP, setEnemyMaxHP] = useState(100);
+  const [allyHP, setAllyHP] = useState(0);
+  const [allyMaxHP, setAllyMaxHP] = useState(0);
+  const [enemyAtk, setEnemyAtk] = useState(10);
+  const [enemyAct, setEnemyAct] = useState(10);
+  const [enemyHitPulse, setEnemyHitPulse] = useState(0);
+  const [enemyLastDmg, setEnemyLastDmg] = useState(0);
+  const enemyHPRef = useRef(enemyHP);
+  const allyHPRef = useRef(allyHP);
+  const battleTimerRef = useRef(null);
+  const enemyTimerRef = useRef(null);
+  const [allyProgress, setAllyProgress] = useState(0);
+  const [enemyProgress, setEnemyProgress] = useState(0);
 
   const dexBodyRef = useRef(null);
   const historyRef = useRef(null);
@@ -177,6 +193,44 @@ function App() {
     clone.currentTime = 0;
     clone.play().catch(() => {});
   };
+
+
+  const clearBattleTimers = () => {
+    if (battleTimerRef.current) {
+      clearInterval(battleTimerRef.current);
+      battleTimerRef.current = null;
+    }
+    if (enemyTimerRef?.current) {
+      clearInterval(enemyTimerRef.current);
+      enemyTimerRef.current = null;
+    }
+  };
+
+  const spawnEnemy = () => {
+    setEnemyHP(100);
+    setEnemyMaxHP(100);
+    setEnemyAtk(10);
+    setEnemyAct(10);
+    setEnemyHitPulse(0);
+    setEnemyLastDmg(0);
+    setEnemyPlaced(true);
+  };
+
+  const gameOver = () => {
+    clearBattleTimers();
+    setMode("normal");
+    setEnemyPlaced(false);
+  };
+
+  useEffect(() => { enemyHPRef.current = enemyHP; }, [enemyHP]);
+  useEffect(() => { allyHPRef.current = allyHP; }, [allyHP]);
+
+  useEffect(() => {
+    if (enemyHitPulse) {
+      const timer = setTimeout(() => setEnemyHitPulse(0), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [enemyHitPulse]);
 
   useEffect(() => {
     const bgm = audioRefs.bgm.current;
@@ -255,6 +309,8 @@ function App() {
     localStorage.setItem("materials", String(materials));
   }, [canvasItems]);
 
+
+
   useEffect(() => {
     if (mode !== "canvas") return;
     const onKey = (e) => {
@@ -293,7 +349,24 @@ function App() {
     return () => window.removeEventListener("resize", updateAspect);
   }, [mode, canvasItems.length]);
 
-  const scrollToHistory = (name) => {
+  useEffect(() => {
+    if (mode !== "battle") {
+      clearBattleTimers();
+      setAllyProgress(0);
+      setEnemyProgress(0);
+      setEnemyPlaced(false);
+      setEnemyHP(100);
+      setEnemyMaxHP(100);
+      setEnemyAtk(10);
+      setEnemyAct(10);
+      setHumanGauge(0);
+      setHumanPoints(0);
+      setAllyHP(0);
+      setAllyMaxHP(0);
+    }
+  }, [mode]);
+
+    const scrollToHistory = (name) => {
     const body = catalogRef.current || dexBodyRef.current;
     const list = historyRef.current;
     if (!body || !list) return;
@@ -684,6 +757,8 @@ function App() {
     }, { red: 0, orange: 0, green: 0, cyan: 0 });
   }, [canvasItems]);
 
+
+
     const squareGuide = (r) => {
     if (!r) return { top: "0%", bottom: "0%", left: "0%", right: "0%" };
     if (r > 1) {
@@ -719,7 +794,7 @@ function App() {
       ];
       const maxGauge = Math.max(1, ...gaugeList.map((g) => g.value || 0));
       const humanGaugeMax = 100;
-      const humanGaugeVal = Math.min(humanGaugeMax, Math.max(0, canvasTotals.orange));
+      const humanGaugeVal = Math.min(humanGaugeMax, Math.max(0, humanGauge));
       const healthVal = canvasTotals.green;
       const canBattle = healthVal > 0;
       return (
@@ -742,10 +817,39 @@ function App() {
                 <div className="human-fill" style={{ width: `${humanGaugeVal}%` }}></div>
               </div>
               <span className="human-val">{humanGaugeVal}/100</span>
+              <span className="human-points">ポイント: {humanPoints}</span>
             </div>
           </div>
           <div className="battle-scene">
+            {allyMaxHP > 0 && (
+              <div className="ally-hp hud hud-top-left">
+                <div className="ally-hp-bar">
+                  <div className="ally-hp-fill" style={{ width: `${Math.max(0, allyHP) / (allyMaxHP || 1) * 100}%` }}></div>
+                </div>
+                <div className="ally-hp-text">{allyHP} / {allyMaxHP}</div>
+              </div>
+            )}
+            {allyMaxHP > 0 && (
+              <div className="ally-hp hud hud-top-left">
+                <div className="ally-hp-bar">
+                  <div className="ally-hp-fill" style={{ width: `${Math.max(0, allyHP) / (allyMaxHP || 1) * 100}%` }}></div>
+                </div>
+                <div className="ally-hp-text">{allyHP} / {allyMaxHP}</div>
+                <div className="action-progress"><div className="action-fill" style={{ width: `${Math.min(100, allyProgress)}%` }}></div></div>
+              </div>
+            )}
+            {enemyPlaced && (
+              <div className="enemy-hp hud hud-top-out">
+                <div className="enemy-hp-bar">
+                  <div className="enemy-hp-fill" style={{ width: `${Math.max(0, enemyHP) / (enemyMaxHP || 1) * 100}%` }}></div>
+                </div>
+                <div className="enemy-hp-text">{enemyHP} / {enemyMaxHP}</div>
+                {enemyHitPulse ? <div className="enemy-dmg">-{enemyLastDmg}</div> : null}
+                <div className="action-progress"><div className="action-fill enemy" style={{ width: `${Math.min(100, enemyProgress)}%` }}></div></div>
+              </div>
+            )}
             <div className="battle-clip left-offset" style={clipStyle}>
+
               <div className="battle-guide" style={guideStyle}></div>
               {canvasItems.map((c) => (
                 <div
@@ -771,6 +875,15 @@ function App() {
                 playSound("se5", 0.75);
                 return;
               }
+              clearBattleTimers();
+              setEnemyHP(100);
+              setEnemyMaxHP(100);
+              setEnemyAtk(10);
+              setEnemyAct(10);
+              setHumanGauge(0);
+              setHumanPoints((v) => v);
+              setAllyHP(canvasTotals.green);
+              setAllyMaxHP(canvasTotals.green);
               setEnemyPlaced(true);
             }}
           >戦闘開始！</button>
@@ -818,13 +931,27 @@ function App() {
     );
 
     if (result.type === "item" && result.item) {
+      const drawnMeta = lookupItem(result.item.name) || {};
+      const drawnStats = lookupStats(result.item.name);
       return (
         <div key={`result-${drawPulse}`} className="card with-image got draw-anim">
           <div className="thumb">
             <img src={result.item.img} alt={result.item.name} />
           </div>
-          <div>
+          <div className="draw-info">
             <div className="item">{result.item.name}</div>
+            <div className="draw-rare-line">{drawnMeta.rarity ? `レアリティ: ${drawnMeta.rarity}` : "レアリティ: 情報なし"}</div>
+            {drawnStats ? (
+              <div className="meta stats-line">
+                <span>{STAT_LABELS.red}: {drawnStats.red}</span>
+                <span>{STAT_LABELS.orange}: {drawnStats.orange}</span>
+                <span>{STAT_LABELS.green}: {drawnStats.green}</span>
+                <span>{STAT_LABELS.cyan}: {drawnStats.cyan}</span>
+              </div>
+            ) : (
+              <div className="meta stats-line">ステータス: 情報なし</div>
+            )}
+            <div className="meta skill-line">{drawnMeta.skill ? `滅ぼしスキル: ${drawnMeta.skill.name}（${drawnMeta.skill.desc}）` : "滅ぼしスキル: 情報なし"}</div>
             <div className="meta">
               <span>回数… {result.count} 回</span>
               <span>時刻… {new Date(result.at).toLocaleString()}</span>
@@ -835,6 +962,84 @@ function App() {
     }
     return <div className="small">作るボタンでガチャを回してください。</div>;
   })();
+
+
+
+
+  useEffect(() => {
+    if (mode !== "battle" || !enemyPlaced) {
+      clearBattleTimers();
+      return;
+    }
+    const allyInterval = Math.max(500, (canvasTotals.cyan > 0 ? (1000 * 100) / canvasTotals.cyan : 1000));
+    const enemyInterval = enemyAct && enemyAct > 0 ? (1000 * (100 / enemyAct)) : 10000;
+    let allyStart = Date.now();
+    let enemyStart = Date.now();
+    const allyTick = () => {
+      allyStart = Date.now();
+      if (!enemyPlaced) return;
+      if (enemyHPRef.current <= 0) return;
+      if (canvasTotals.red > 0) {
+        setEnemyHP((hp) => {
+          if (hp <= 0) return hp;
+          const dmg = canvasTotals.red;
+          const next = Math.max(0, hp - dmg);
+          setEnemyLastDmg(dmg);
+          setEnemyHitPulse((v) => v + 1);
+          if (next <= 0) {
+            setMaterials((m) => m + 100);
+            clearBattleTimers();
+            setEnemyPlaced(false);
+            setTimeout(() => spawnEnemy(), 1000);
+            return next;
+          }
+          return next;
+        });
+      }
+      if (canvasTotals.orange > 0) {
+        setHumanGauge((g) => {
+          let next = g + canvasTotals.orange;
+          let pointsGain = 0;
+          while (next >= 100) {
+            next -= 100;
+            pointsGain += 1;
+          }
+          if (pointsGain) setHumanPoints((p) => p + pointsGain);
+          return next;
+        });
+      }
+    };
+    const enemyTick = () => {
+      enemyStart = Date.now();
+      if (!enemyPlaced) return;
+      if (enemyHPRef.current <= 0) return;
+      setAllyHP((hp) => {
+        if (hp <= 0) return hp;
+        const dmg = enemyAtk;
+        const next = Math.max(0, hp - dmg);
+        if (next <= 0) {
+          gameOver();
+          return 0;
+        }
+        return next;
+      });
+    };
+    battleTimerRef.current = setInterval(allyTick, allyInterval);
+    enemyTimerRef.current = setInterval(enemyTick, enemyInterval);
+    const progTimer = setInterval(() => {
+      const now = Date.now();
+      const allyProg = Math.min(100, ((now - allyStart) / allyInterval) * 100);
+      const enemyProg = Math.min(100, ((now - enemyStart) / enemyInterval) * 100);
+      setAllyProgress(allyProg);
+      setEnemyProgress(enemyProg);
+    }, 200);
+    return () => {
+      clearBattleTimers();
+      clearInterval(progTimer);
+      setAllyProgress(0);
+      setEnemyProgress(0);
+    };
+  }, [mode, enemyPlaced, canvasTotals.red, canvasTotals.orange, canvasTotals.cyan, enemyAct, enemyAtk]);
 
   const handleDexWheel = (e) => {
     if (activeTab === "catalog") {
@@ -935,7 +1140,10 @@ function App() {
                   </div>
                 </div>
                 <div className={`tab-panel ${activeTab === "owned" ? "active" : ""}`} id="tab-owned" onWheelCapture={handleDexWheel}>
-                  <div className="owned-selected-name">{ownedTitle || ""}</div>
+                  <div className="owned-selected-name">
+                    <div className="owned-rarity">{ownedMeta?.rarity ? `レアリティ: ${ownedMeta.rarity}` : "レアリティ: 情報なし"}</div>
+                    <div className="owned-title">{ownedTitle || ""}</div>
+                  </div>
                   <div className="owned-selected-stats">
                     {(ownedStats || ownedMeta) ? (
                       <>
@@ -948,8 +1156,7 @@ function App() {
                           </div>
                         ) : null}
                         <div className="stat-meta">
-                          {ownedMeta?.rarity ? <span className="rarity">レアリティ: {ownedMeta.rarity}</span> : null}
-                          {ownedMeta?.skill ? <span className="skill">滅ぼしスキル: {ownedMeta.skill.name}（{ownedMeta.skill.desc}）</span> : null}
+                          {ownedMeta?.skill ? <span className="skill">滅ぼしスキル: {ownedMeta.skill.name}（{ownedMeta.skill.desc}）</span> : <span className="skill">滅ぼしスキル: 情報なし</span>}
                         </div>
                       </>
                     ) : ""}
