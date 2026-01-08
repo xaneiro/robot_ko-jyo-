@@ -149,6 +149,7 @@ function App() {
   const [canvasAspect, setCanvasAspect] = useState(16 / 9);
   const [humanGauge, setHumanGauge] = useState(0);
   const [humanPoints, setHumanPoints] = useState(0);
+  const [handCards, setHandCards] = useState([]);
   const [enemyHP, setEnemyHP] = useState(100);
   const [enemyMaxHP, setEnemyMaxHP] = useState(100);
   const [allyHP, setAllyHP] = useState(0);
@@ -361,6 +362,7 @@ function App() {
       setEnemyAct(10);
       setHumanGauge(0);
       setHumanPoints(0);
+      setHandCards([]);
       setAllyHP(0);
       setAllyMaxHP(0);
     }
@@ -458,6 +460,23 @@ function App() {
     resizingRef.current = false;
     resizeStartRef.current = null;
     setResult({ type: "battle" });
+  };
+
+  const handleHoloDraw = () => {
+    if (mode !== "battle") return;
+    if (humanPoints < 1) { playSound("se5", 0.7); return; }
+    const withSkill = canvasItems
+      .map((c) => lookupItem(c.name))
+      .filter((m) => m && m.skill);
+    const pick = withSkill.length
+      ? withSkill[Math.floor(Math.random() * withSkill.length)]
+      : { name: "情報なし", skill: { name: "情報なし", desc: "スキル未設定" } };
+    setHumanPoints((p) => Math.max(0, p - 1));
+    setHandCards((prev) => {
+      const next = [...prev, { name: pick.name, skill: pick.skill || { name: "情報なし", desc: "スキル未設定" } }];
+      if (next.length > 5) next.shift();
+      return next;
+    });
   };
 
   const ownedItems = useMemo(() => ITEMS.filter((i) => countsMap[i.key]), [countsMap]);
@@ -865,6 +884,23 @@ function App() {
                 </div>
               ))}
             </div>
+            {enemyPlaced && (
+              <div className="battle-hand">
+                <button className="toggle" onClick={handleHoloDraw} disabled={humanPoints < 1}>滅ぼしドロー ({Math.max(0, humanPoints)})</button>
+                <div className="hand-list">
+                  {handCards.length === 0 ? (
+                    <div className="hand-empty">手札なし</div>
+                  ) : (
+                    handCards.map((h, idx) => (
+                      <div className="hand-card" key={`hand-${idx}`}>
+                        <div className="hand-name">{h.name}</div>
+                        <div className="hand-skill">{h.skill?.name || "情報なし"}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         {!enemyPlaced && (
           <button
