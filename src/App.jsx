@@ -889,7 +889,7 @@ function App() {
                 <div className="action-progress"><div className="action-fill" style={{ width: `${Math.min(100, allyProgress)}%` }}></div></div>
               </div>
             )}
-            {mode === "battle" && (
+            {mode === "battle" && (enemyPlaced || enemyDying) && (
               <div className="enemy-hp hud hud-top-out">
                 <div className="enemy-hp-bar">
                   <div className="enemy-hp-fill" style={{ width: `${Math.max(0, enemyHP) / (enemyMaxHP || 1) * 100}%` }}></div>
@@ -916,7 +916,7 @@ function App() {
                 </div>
               ))}
             </div>
-            {enemyPlaced && (
+            {mode === "battle" && (enemyPlaced || enemyDying) && (
               <div className="battle-hand">
                 <button className="toggle" onClick={handleHoloDraw} disabled={humanPoints < 1}>滅ぼしドロー ({Math.max(0, humanPoints)})</button>
                 <div className="hand-list">
@@ -957,7 +957,7 @@ function App() {
             }}
           >戦闘開始！</button>
         )}
-        {enemyPlaced && (
+        {mode === "battle" && (enemyPlaced || enemyDying) && (
           <div className={`battle-enemy ${enemyDying ? "dying" : ""}`}>
             <img src="/enemy/人類.png" alt="人類" />
           </div>
