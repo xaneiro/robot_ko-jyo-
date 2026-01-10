@@ -104,7 +104,7 @@ const ITEMS = FILES.map((file, idx) => {
   if (file.startsWith("00メカニカルガール足立")) {
     rarity = "⭐︎";
     stats = { red: 10, orange: 10, green: 100, cyan: 20 };
-    skill = { name: "人類滅ぼしパンチ", desc: "攻撃力依存、200%のダメージ" };
+    skill = { name: "人類滅ぼしパンチ", desc: "攻撃力依存、200%のダメージ", cost: 1 };
   }
   return { key, name, img: `/images/${file}`, order, idx, stats, rarity, skill };
 }).sort((a, b) => (a.order === b.order ? a.idx - b.idx : a.order - b.order));
@@ -140,6 +140,7 @@ function App() {
   const [ownedHover, setOwnedHover] = useState(null);
   const [materials, setMaterials] = useState(INITIAL_MATERIAL);
   const [enemyPlaced, setEnemyPlaced] = useState(false);
+  const [enemyDying, setEnemyDying] = useState(false);
   const [canvasItems, setCanvasItems] = useState([]);
   const [hoverStat, setHoverStat] = useState("");
   const [previewPos, setPreviewPos] = useState(null);
@@ -150,6 +151,7 @@ function App() {
   const [humanGauge, setHumanGauge] = useState(0);
   const [humanPoints, setHumanPoints] = useState(0);
   const [handCards, setHandCards] = useState([]);
+  const humanGaugeRef = useRef(0);
   const [enemyHP, setEnemyHP] = useState(100);
   const [enemyMaxHP, setEnemyMaxHP] = useState(100);
   const [allyHP, setAllyHP] = useState(0);
@@ -208,6 +210,7 @@ function App() {
   };
 
   const spawnEnemy = () => {
+    setEnemyDying(false);
     setEnemyHP(100);
     setEnemyMaxHP(100);
     setEnemyAtk(10);
@@ -225,6 +228,8 @@ function App() {
 
   useEffect(() => { enemyHPRef.current = enemyHP; }, [enemyHP]);
   useEffect(() => { allyHPRef.current = allyHP; }, [allyHP]);
+  useEffect(() => { humanGaugeRef.current = humanGauge; }, [humanGauge]);
+
 
   useEffect(() => {
     if (enemyHitPulse) {
@@ -356,6 +361,7 @@ function App() {
       setAllyProgress(0);
       setEnemyProgress(0);
       setEnemyPlaced(false);
+      setEnemyDying(false);
       setEnemyHP(100);
       setEnemyMaxHP(100);
       setEnemyAtk(10);
@@ -449,6 +455,32 @@ function App() {
     setResult({ type: "canvas" });
   };
 
+  const handleSkillPlay = (card, index) => {
+    if (mode !== "battle" || !card) return;
+    const cost = card?.skill?.cost ?? 1;
+    if (humanPoints < cost) { playSound("se5", 0.7); return; }
+    setHumanPoints((p) => Math.max(0, p - cost));
+    const dmg = Math.max(0, Math.floor(canvasTotals.red * 2));
+    playSound("se4", 0.7);
+    setHandCards((prev) => prev.filter((_, i) => i !== index));
+    setEnemyHP((hp) => {
+      if (hp <= 0) return hp;
+      const next = Math.max(0, hp - dmg);
+      setEnemyLastDmg(dmg);
+      setEnemyHitPulse((v) => v + 1);
+      if (next <= 0) {
+        setMaterials((m) => m + 100);
+        clearBattleTimers();
+        setEnemyPlaced(false);
+        setEnemyDying(true);
+        setTimeout(() => {
+          spawnEnemy();
+        }, 800);
+      }
+      return next;
+    });
+  };
+
   const handleBattle = () => {
     playSound("se6", 0.7);
     setMode("battle");
@@ -465,17 +497,17 @@ function App() {
   const handleHoloDraw = () => {
     if (mode !== "battle") return;
     if (humanPoints < 1) { playSound("se5", 0.7); return; }
+    if (handCards.length >= 5) { playSound("se5", 0.7); return; }
     const withSkill = canvasItems
       .map((c) => lookupItem(c.name))
       .filter((m) => m && m.skill);
     const pick = withSkill.length
       ? withSkill[Math.floor(Math.random() * withSkill.length)]
-      : { name: "情報なし", skill: { name: "情報なし", desc: "スキル未設定" } };
+      : { name: "情報なし", skill: { name: "情報なし", desc: "スキル未設定", cost: 1 } };
     setHumanPoints((p) => Math.max(0, p - 1));
     setHandCards((prev) => {
-      const next = [...prev, { name: pick.name, skill: pick.skill || { name: "情報なし", desc: "スキル未設定" } }];
-      if (next.length > 5) next.shift();
-      return next;
+      if (prev.length >= 5) return prev;
+      return [...prev, { name: pick.name, skill: pick.skill || { name: "情報なし", desc: "スキル未設定", cost: 1 } }];
     });
   };
 
@@ -857,7 +889,7 @@ function App() {
                 <div className="action-progress"><div className="action-fill" style={{ width: `${Math.min(100, allyProgress)}%` }}></div></div>
               </div>
             )}
-            {enemyPlaced && (
+            {mode === "battle" && (
               <div className="enemy-hp hud hud-top-out">
                 <div className="enemy-hp-bar">
                   <div className="enemy-hp-fill" style={{ width: `${Math.max(0, enemyHP) / (enemyMaxHP || 1) * 100}%` }}></div>
@@ -892,9 +924,10 @@ function App() {
                     <div className="hand-empty">手札なし</div>
                   ) : (
                     handCards.map((h, idx) => (
-                      <div className="hand-card" key={`hand-${idx}`}>
+                      <div className="hand-card" key={`hand-${idx}`} onClick={() => handleSkillPlay(h, idx)}>
                         <div className="hand-name">{h.name}</div>
                         <div className="hand-skill">{h.skill?.name || "情報なし"}</div>
+                        <div className="hand-cost">消費: {h.skill?.cost ?? 1}</div>
                       </div>
                     ))
                   )}
@@ -902,7 +935,7 @@ function App() {
               </div>
             )}
           </div>
-        {!enemyPlaced && (
+        {!enemyPlaced && !enemyDying && (
           <button
             className={`battle-start-btn ${!canBattle ? "disabled" : ""}`}
             aria-disabled={!canBattle}
@@ -925,7 +958,7 @@ function App() {
           >戦闘開始！</button>
         )}
         {enemyPlaced && (
-          <div className="battle-enemy">
+          <div className={`battle-enemy ${enemyDying ? "dying" : ""}`}>
             <img src="/enemy/人類.png" alt="人類" />
           </div>
         )}
@@ -1026,23 +1059,26 @@ function App() {
             setMaterials((m) => m + 100);
             clearBattleTimers();
             setEnemyPlaced(false);
-            setTimeout(() => spawnEnemy(), 1000);
+            setEnemyDying(true);
+            setTimeout(() => {
+              spawnEnemy();
+            }, 800);
             return next;
           }
           return next;
         });
       }
       if (canvasTotals.orange > 0) {
-        setHumanGauge((g) => {
-          let next = g + canvasTotals.orange;
-          let pointsGain = 0;
-          while (next >= 100) {
-            next -= 100;
-            pointsGain += 1;
-          }
-          if (pointsGain) setHumanPoints((p) => p + pointsGain);
-          return next;
-        });
+        const total = humanGaugeRef.current + canvasTotals.orange;
+        if (total >= 100) {
+          const nextGauge = total % 100;
+          setHumanGauge(nextGauge);
+          humanGaugeRef.current = nextGauge;
+          setHumanPoints((p) => p + 1);
+        } else {
+          setHumanGauge(total);
+          humanGaugeRef.current = total;
+        }
       }
     };
     const enemyTick = () => {
