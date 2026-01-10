@@ -92,6 +92,7 @@ const FILES = [
 
 
 
+const enemyImages = import.meta.glob('/enemy/*.png', { eager: true, as: 'url' });
 const ITEMS = FILES.map((file, idx) => {
   const base = file.replace(/\.png$/i, "");
   const m = base.match(/^(\d{1,3})/);
@@ -132,6 +133,9 @@ function App() {
   const [activeTab, setActiveTab] = useState("catalog");
   const [modalImg, setModalImg] = useState(null);
   const [mode, setMode] = useState("normal");
+  const [gameOver, setGameOver] = useState({ visible: false, floor: 1 });
+  const [confirmExit, setConfirmExit] = useState(false);
+  const [pendingNav, setPendingNav] = useState(null);
   const [bgmOn, setBgmOn] = useState(true);
   const [bgmVol, setBgmVol] = useState(0.4);
   const [lastDrawnName, setLastDrawnName] = useState(null);
@@ -140,6 +144,9 @@ function App() {
   const [ownedHover, setOwnedHover] = useState(null);
   const [materials, setMaterials] = useState(INITIAL_MATERIAL);
   const [enemyPlaced, setEnemyPlaced] = useState(false);
+  const [floor, setFloor] = useState(1);
+  const [enemyRoster, setEnemyRoster] = useState([]);
+  const [currentEnemy, setCurrentEnemy] = useState(null);
   const [enemyDying, setEnemyDying] = useState(false);
   const [canvasItems, setCanvasItems] = useState([]);
   const [hoverStat, setHoverStat] = useState("");
@@ -209,23 +216,74 @@ function App() {
     }
   };
 
-  const spawnEnemy = () => {
+  
+  
+  function triggerGameOver() {
+    setGameOver({ visible: true, floor });
+    clearBattleTimers();
+    setMode("battle");
+    setEnemyPlaced(true);
     setEnemyDying(false);
-    setEnemyHP(100);
-    setEnemyMaxHP(100);
-    setEnemyAtk(10);
-    setEnemyAct(10);
+    setEnemyHP(0);
+  }
+
+const loadEnemies = () => {
+    const roster = Object.keys(enemyImages).map((path, idx) => {
+      const name = path.split("/").pop();
+      const baseHP = 80 + (idx * 13) % 50;
+      const baseAtk = 8 + (idx * 7) % 10;
+      const baseAct = 8 + (idx * 5) % 10;
+      return { key: name, img: enemyImages[path] || `/enemy/${name}`, baseHP, baseAtk, baseAct };
+    });
+    setEnemyRoster(roster);
+    return roster;
+  };
+
+  const calcEnemyStats = (enemy, floorNum) => {
+    const baseHP = enemy.baseHP;
+    const baseAtk = enemy.baseAtk;
+    const baseAct = enemy.baseAct;
+    let mult = 1 + 0.5 * Math.max(0, floorNum - 1);
+    if (floorNum % 10 === 0) mult *= 3.0; // ボス強化
+    else if (floorNum % 5 === 0) mult *= 2.0; // 中ボス強化
+    return {
+      hp: Math.max(1, Math.round(baseHP * mult)),
+      atk: Math.max(1, Math.round(baseAtk * mult)),
+      act: Math.max(1, Math.round(baseAct * mult)),
+      mult,
+    };
+  };
+
+
+  function handleEnemyDefeat() {
+    const multInfo = currentEnemy ? calcEnemyStats(currentEnemy, floor).mult : 1;
+    const drop = Math.max(1, Math.round(100 * multInfo));
+    setMaterials((m) => m + drop);
+    setFloor((f) => f + 1);
+    clearBattleTimers();
+    setEnemyPlaced(false);
+    setEnemyDying(true);
+    setTimeout(() => {
+      spawnEnemy();
+    }, 800);
+  }
+
+const spawnEnemy = () => {
+    setEnemyDying(false);
+    const roster = enemyRoster.length ? enemyRoster : loadEnemies();
+    const pick = roster[Math.floor(Math.random() * roster.length)];
+    const stats = calcEnemyStats(pick, floor);
+    setCurrentEnemy(pick);
+    setEnemyHP(stats.hp);
+    setEnemyMaxHP(stats.hp);
+    setEnemyAtk(stats.atk);
+    setEnemyAct(stats.act);
     setEnemyHitPulse(0);
     setEnemyLastDmg(0);
     setEnemyPlaced(true);
   };
 
-  const gameOver = () => {
-    clearBattleTimers();
-    setMode("normal");
-    setEnemyPlaced(false);
-  };
-
+  
   useEffect(() => { enemyHPRef.current = enemyHP; }, [enemyHP]);
   useEffect(() => { allyHPRef.current = allyHP; }, [allyHP]);
   useEffect(() => { humanGaugeRef.current = humanGauge; }, [humanGauge]);
@@ -363,6 +421,9 @@ function App() {
       setEnemyPlaced(false);
       setEnemyDying(false);
       setEnemyHP(100);
+      setGameOver({ visible: false, floor: 1 });
+      setPendingNav(null);
+      setConfirmExit(false);
       setEnemyMaxHP(100);
       setEnemyAtk(10);
       setEnemyAct(10);
@@ -384,7 +445,7 @@ function App() {
     body.scrollTo({ top, behavior: "smooth" });
   };
 
-  const handleDraw = () => {
+  const handleDrawCore = () => {
     setMode("normal");
     setEnemyPlaced(false);
     setPreviewPos(null);
@@ -441,7 +502,17 @@ function App() {
     setLastDrawnName(null);
   };
 
-  const handleAssemble = () => {
+    const handleNavWithConfirm = (target) => {
+    if (mode === "battle") {
+      setConfirmExit(true);
+      setPendingNav(target);
+      return;
+    }
+    if (target === "draw") handleDrawCore();
+    else if (target === "assemble") handleAssembleCore();
+  };
+
+const handleAssembleCore = () => {
     playSound("se6", 0.6);
     setMode("canvas");
     setEnemyPlaced(false);
@@ -469,19 +540,17 @@ function App() {
       setEnemyLastDmg(dmg);
       setEnemyHitPulse((v) => v + 1);
       if (next <= 0) {
-        setMaterials((m) => m + 100);
-        clearBattleTimers();
-        setEnemyPlaced(false);
-        setEnemyDying(true);
-        setTimeout(() => {
-          spawnEnemy();
-        }, 800);
+        handleEnemyDefeat();
       }
       return next;
     });
   };
 
-  const handleBattle = () => {
+  
+  const handleDraw = () => handleNavWithConfirm("draw");
+  const handleAssemble = () => handleNavWithConfirm("assemble");
+
+const handleBattle = () => {
     playSound("se6", 0.7);
     setMode("battle");
     setEnemyPlaced(false);
@@ -894,7 +963,7 @@ function App() {
                 <div className="enemy-hp-bar">
                   <div className="enemy-hp-fill" style={{ width: `${Math.max(0, enemyHP) / (enemyMaxHP || 1) * 100}%` }}></div>
                 </div>
-                <div className="enemy-hp-text">{enemyHP} / {enemyMaxHP}</div>
+                <div className="enemy-hp-text">{enemyHP} / {enemyMaxHP}</div><div className="floor-label">{floor}F</div>
                 {enemyHitPulse ? <div className="enemy-dmg">-{enemyLastDmg}</div> : null}
                 <div className="action-progress"><div className="action-fill enemy" style={{ width: `${Math.min(100, enemyProgress)}%` }}></div></div>
               </div>
@@ -959,7 +1028,7 @@ function App() {
         )}
         {mode === "battle" && (enemyPlaced || enemyDying) && (
           <div className={`battle-enemy ${enemyDying ? "dying" : ""}`}>
-            <img src="/enemy/人類.png" alt="人類" />
+            <img src={currentEnemy?.img || "/enemy/人類.png"} alt={currentEnemy?.key || "敵"} />
           </div>
         )}
         </div>
@@ -1036,7 +1105,7 @@ function App() {
 
 
   useEffect(() => {
-    if (mode !== "battle" || !enemyPlaced) {
+    if (mode !== "battle") {
       clearBattleTimers();
       return;
     }
@@ -1056,13 +1125,7 @@ function App() {
           setEnemyLastDmg(dmg);
           setEnemyHitPulse((v) => v + 1);
           if (next <= 0) {
-            setMaterials((m) => m + 100);
-            clearBattleTimers();
-            setEnemyPlaced(false);
-            setEnemyDying(true);
-            setTimeout(() => {
-              spawnEnemy();
-            }, 800);
+            handleEnemyDefeat();
             return next;
           }
           return next;
@@ -1090,7 +1153,7 @@ function App() {
         const dmg = enemyAtk;
         const next = Math.max(0, hp - dmg);
         if (next <= 0) {
-          gameOver();
+          triggerGameOver();
           return 0;
         }
         return next;
@@ -1251,6 +1314,47 @@ function App() {
           これはクライアントだけで動く簡易ガチャです。全て引くと終了します。画像は入手済みカードからダウンロードできます。
         </p>
       </div>
+
+      
+      {gameOver.visible && (
+        <div className="gameover-overlay" onClick={() => {
+          setGameOver({ visible: false, floor: 1 });
+          setMode("normal");
+          setEnemyPlaced(false);
+          setEnemyDying(false);
+          setEnemyHP(100);
+          setEnemyMaxHP(100);
+          setAllyHP(0);
+          setAllyMaxHP(0);
+          setHumanGauge(0);
+          setHumanPoints(0);
+          setHandCards([]);
+        }}>
+          <div className="gameover-panel">
+            <div className="gameover-title">GAME OVER</div>
+            <div className="gameover-floor">到達FLOOR: {gameOver.floor}F</div>
+            <div className="gameover-hint">画面をクリックで戻る</div>
+          </div>
+        </div>
+      )}
+
+      
+      {confirmExit && (
+        <div className="confirm-overlay">
+          <div className="confirm-panel">
+            <div className="confirm-text">移動すると戦闘が終了します</div>
+            <div className="confirm-buttons">
+              <button className="toggle" onClick={() => { setConfirmExit(false); setPendingNav(null); }}>やめる</button>
+              <button className="toggle" onClick={() => {
+                setConfirmExit(false);
+                if (pendingNav === "draw") handleDrawCore();
+                else if (pendingNav === "assemble") handleAssembleCore();
+                setPendingNav(null);
+              }}>分かった</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modalImg && (
         <div className="modal show" onClick={() => setModalImg(null)}>
