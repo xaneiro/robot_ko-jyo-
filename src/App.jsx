@@ -148,6 +148,7 @@ function App() {
   const [enemyRoster, setEnemyRoster] = useState([]);
   const [currentEnemy, setCurrentEnemy] = useState(null);
   const [enemyDying, setEnemyDying] = useState(false);
+  const [inBattlePhase, setInBattlePhase] = useState(false);
   const [canvasItems, setCanvasItems] = useState([]);
   const [hoverStat, setHoverStat] = useState("");
   const [previewPos, setPreviewPos] = useState(null);
@@ -221,6 +222,7 @@ function App() {
   function triggerGameOver() {
     setGameOver({ visible: true, floor });
     clearBattleTimers();
+    setInBattlePhase(false);
     setMode("battle");
     setEnemyPlaced(true);
     setEnemyDying(false);
@@ -416,12 +418,14 @@ const spawnEnemy = () => {
   useEffect(() => {
     if (mode !== "battle") {
       clearBattleTimers();
+      setInBattlePhase(false);
       setAllyProgress(0);
       setEnemyProgress(0);
       setEnemyPlaced(false);
       setEnemyDying(false);
       setEnemyHP(100);
       setGameOver({ visible: false, floor: 1 });
+      setFloor(1);
       setPendingNav(null);
       setConfirmExit(false);
       setEnemyMaxHP(100);
@@ -503,7 +507,7 @@ const spawnEnemy = () => {
   };
 
     const handleNavWithConfirm = (target) => {
-    if (mode === "battle") {
+    if (mode === "battle" && inBattlePhase) {
       setConfirmExit(true);
       setPendingNav(target);
       return;
@@ -1023,6 +1027,7 @@ const handleBattle = () => {
               setAllyHP(canvasTotals.green);
               setAllyMaxHP(canvasTotals.green);
               setEnemyPlaced(true);
+              setInBattlePhase(true);
             }}
           >戦闘開始！</button>
         )}
@@ -1319,6 +1324,7 @@ const handleBattle = () => {
       {gameOver.visible && (
         <div className="gameover-overlay" onClick={() => {
           setGameOver({ visible: false, floor: 1 });
+          setFloor(1);
           setMode("normal");
           setEnemyPlaced(false);
           setEnemyDying(false);
@@ -1367,6 +1373,7 @@ const handleBattle = () => {
   );
 }
 export default App;
+
 
 
 
