@@ -92,6 +92,87 @@ const FILES = [
 
 
 
+const BASE_00_PREFIX = "00メカニカルガール足立";
+const BASE_00_STATS = { red: 10, orange: 10, green: 100, cyan: 20 };
+
+const RARITY_BUCKETS = [
+  { rarity: "☆☆☆☆☆", count: 10 },
+  { rarity: "☆☆☆☆", count: 20 },
+  { rarity: "☆☆☆", count: 20 },
+  { rarity: "☆☆", count: 20 },
+  { rarity: "☆", count: Infinity },
+];
+const RARITY_MULTIPLIER = { "☆": 1, "☆☆": 1.5, "☆☆☆": 2, "☆☆☆☆": 3, "☆☆☆☆☆": 4 };
+
+const xmur3 = (str) => {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return () => {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return h >>> 0;
+  };
+};
+
+const mulberry32 = (a) => () => {
+  let t = (a += 0x6d2b79f5);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
+const rngFromString = (seedStr) => mulberry32(xmur3(seedStr)());
+
+const shuffleInPlace = (arr, rng) => {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
+
+const rarityByKey = (() => {
+  const keys = FILES
+    .filter((file) => !file.startsWith(BASE_00_PREFIX))
+    .map((file) => file.replace(/\.png$/i, ""));
+
+  shuffleInPlace(keys, rngFromString("rarity-v1"));
+
+  const map = {};
+  let cursor = 0;
+  for (const bucket of RARITY_BUCKETS) {
+    const remain = keys.length - cursor;
+    if (remain <= 0) break;
+    const take = bucket.count === Infinity ? remain : Math.min(bucket.count, remain);
+    for (let i = 0; i < take; i++) {
+      map[keys[cursor++]] = bucket.rarity;
+    }
+  }
+  return map;
+})();
+
+const rollStat = (base, mult, rng) => {
+  const lo = Math.max(1, mult * 0.85);
+  const hi = mult * 1.15;
+  const m = lo + (hi - lo) * rng();
+  return Math.max(base, Math.round(base * m));
+};
+
+const rollStats = (key, rarity) => {
+  const mult = RARITY_MULTIPLIER[rarity] ?? 1;
+  const rng = rngFromString("stats-v1|" + key + "|" + rarity);
+  return {
+    red: rollStat(BASE_00_STATS.red, mult, rng),
+    orange: rollStat(BASE_00_STATS.orange, mult, rng),
+    green: rollStat(BASE_00_STATS.green, mult, rng),
+    cyan: rollStat(BASE_00_STATS.cyan, mult, rng),
+  };
+};
+
 const enemyImages = import.meta.glob('/enemy/*.png', { eager: true, as: 'url' });
 const ITEMS = FILES.map((file, idx) => {
   const base = file.replace(/\.png$/i, "");
@@ -99,15 +180,14 @@ const ITEMS = FILES.map((file, idx) => {
   const order = m ? Number(m[1]) : 1000 + idx;
   const key = base;
   const name = base;
-  let stats = { red: 10, orange: 10, green: 100, cyan: 10 };
-  let rarity;
+  const is00 = file.startsWith(BASE_00_PREFIX);
+  const rarity = is00 ? "??" : (rarityByKey[key] || "☆");
+  const stats = is00 ? { ...BASE_00_STATS } : rollStats(key, rarity);
   let skill;
-  if (file.startsWith("00メカニカルガール足立")) {
-    rarity = "⭐︎";
-    stats = { red: 10, orange: 10, green: 100, cyan: 20 };
+  if (is00) {
     skill = { name: "人類滅ぼしパンチ", desc: "攻撃力依存、200%のダメージ", cost: 1 };
   }
-  return { key, name, img: `/images/${file}`, order, idx, stats, rarity, skill };
+  return { key, name, img: "/images/" + file, order, idx, stats, rarity, skill };
 }).sort((a, b) => (a.order === b.order ? a.idx - b.idx : a.order - b.order));
 
 
@@ -116,7 +196,7 @@ const LS_COUNT = "gacha_count_v3";
 const LS_COUNTS = "gacha_card_counts_v1";
 const LS_CANVAS = "gacha_canvas_v1";
 const MATERIAL_COST = 100;
-const INITIAL_MATERIAL = 150;
+const INITIAL_MATERIAL = 180;
 const MAX_CANVAS_ITEMS = 20;
 const DRAW_SETTLE_MS_NEW = 1200;
 const DRAW_SETTLE_MS_DUP = 650;
@@ -609,6 +689,18 @@ const handleBattle = () => {
   };
 
   const ownedItems = useMemo(() => ITEMS.filter((i) => countsMap[i.key]), [countsMap]);
+  const placedCountMap = useMemo(() => {
+    return canvasItems.reduce((acc, c) => {
+      const key = c.name;
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+  }, [canvasItems]);
+  const availableCount = (key) => {
+    const owned = countsMap[key] || 0;
+    const placed = placedCountMap[key] || 0;
+    return Math.max(0, owned - placed);
+  };
   const hoveredIdx = ownedItems.findIndex((i) => i.key === ownedHover);
 
   const CANVAS_MARGIN_X = 12;  // 横方向の余白％（飛び出し防止を強め）
@@ -618,25 +710,34 @@ const handleBattle = () => {
 
   const addToCanvas = (item, xPerc, yPerc) => {
     if (mode !== "canvas") return;
-    if (canvasItems.length >= MAX_CANVAS_ITEMS) {
-      playSound("se5", 0.75);
-      return;
-    }
-    const spanX = 100 - CANVAS_MARGIN_X * 2;
-    const spanY = 100 - CANVAS_MARGIN_Y * 2;
-    const x = xPerc == null ? Math.random() * spanX + CANVAS_MARGIN_X : clampX(xPerc);
-    const y = yPerc == null ? Math.random() * spanY + CANVAS_MARGIN_Y : clampY(yPerc);
-    setCanvasItems((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}-${Math.random()}`,
-        name: item.name,
-        img: item.img,
-        x,
-        y,
-        scale: 1,
-      },
-    ]);
+    const itemKey = item.key || item.name;
+    const ownedCount = countsMap[itemKey] || 0;
+    setCanvasItems((prev) => {
+      if (prev.length >= MAX_CANVAS_ITEMS) {
+        playSound("se5", 0.75);
+        return prev;
+      }
+      const placedCount = prev.filter((c) => c.name === item.name).length;
+      if (ownedCount <= placedCount) {
+        playSound("se5", 0.75);
+        return prev;
+      }
+      const spanX = 100 - CANVAS_MARGIN_X * 2;
+      const spanY = 100 - CANVAS_MARGIN_Y * 2;
+      const x = xPerc == null ? Math.random() * spanX + CANVAS_MARGIN_X : clampX(xPerc);
+      const y = yPerc == null ? Math.random() * spanY + CANVAS_MARGIN_Y : clampY(yPerc);
+      return [
+        ...prev,
+        {
+          id: `${Date.now()}-${Math.random()}`,
+          name: item.name,
+          img: item.img,
+          x,
+          y,
+          scale: 1,
+        },
+      ];
+    });
   };
 
   const handleDragStart = (item, e) => {
@@ -822,7 +923,7 @@ const handleBattle = () => {
               <Badge got={got} />
             </div>
           </div>
-          <div className="count-badge">所持数: {countsMap[item.key] || 0}</div>
+          <div className="count-badge">所持数: {availableCount(item.key)}</div>
         </div>
       </div>
     );
@@ -847,6 +948,8 @@ const handleBattle = () => {
   }
 
   const ownedStack = ownedItems.map((item, idx) => {
+    const remaining = availableCount(item.key);
+    const depleted = remaining <= 0;
     const jitterX = ((idx * 17) % 10) - 5;
     const jitterY = ((idx * 13) % 12) - 6;
     const baseLeft = 30 + idx * 64 + jitterX;
@@ -858,27 +961,30 @@ const handleBattle = () => {
     const rot = hoveredIdx >= 0 ? (diff === 0 ? 0 : baseRot) : baseRot;
     const scale = hoveredIdx >= 0 ? (diff === 0 ? 1.02 : 0.94) : 1;
     const z = hoveredIdx >= 0 ? (diff === 0 ? 999 : 900 - Math.abs(diff)) : idx;
+    const topWithDeplete = top - lift + (depleted ? 12 : 0);
     return (
       <div
         key={item.key}
-        className="stack-card"
-        style={{ left: baseLeft + offset, top: top - lift, zIndex: z, transform: `rotate(${rot}deg) scale(${scale})`, cursor: mode === "canvas" ? "grab" : "default" }}
+        className={`stack-card ${depleted ? "depleted" : ""}`}
+        style={{ left: baseLeft + offset, top: topWithDeplete, zIndex: z, transform: `rotate(${rot}deg) scale(${scale})`, cursor: mode === "canvas" ? (depleted ? "not-allowed" : "grab") : "default" }}
         data-name={item.key}
-        draggable={mode === "canvas"}
+        draggable={mode === "canvas" && !depleted}
         onMouseEnter={() => { setSelectedId(null); setOwnedHover(item.key); }}
         onMouseLeave={handleOwnedCardLeave}
         onDragStart={(e) => handleDragStart(item, e)}
         onDragEnd={handleDragEnd}
         onClick={() => {
-          if (mode === "canvas") {
+          if (mode === "canvas" && !depleted) {
             addToCanvas(item);
             playSound("se4", 0.65);
+          } else if (mode === "canvas" && depleted) {
+            playSound("se5", 0.7);
           }
         }}
       >
         <img src={item.img} alt={item.name} draggable={false} />
         <div className="count-badge" style={{ right: 8, bottom: 8 }}>
-          x{countsMap[item.key]}
+          x{remaining}
         </div>
       </div>
     );
@@ -1225,12 +1331,13 @@ const handleBattle = () => {
       if (body) body.scrollBy({ top: e.deltaY, behavior: "auto" });
     } else if (activeTab === "owned") {
       const area = ownedRef.current;
-      const speed = Math.min(1, Math.abs(e.deltaY) / 400);
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const speed = Math.min(1, Math.abs(delta) / 400);
       const volume = 0.05 + 0.12 * speed;
       playSound("se7", volume);
       e.preventDefault();
       e.stopPropagation();
-      if (area) area.scrollBy({ left: e.deltaY, behavior: "auto" });
+      if (area) area.scrollBy({ left: delta, behavior: "auto" });
     }
   };
 
