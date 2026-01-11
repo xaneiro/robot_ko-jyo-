@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import "./styles.css";
-const STAT_LABELS = { red: "攻撃力", orange: "滅ぼし力", green: "体力", cyan: "行動力" };
+const STAT_LABELS = { red: "攻撃力", orange: "滅ぼし力", green: "体力", cyan: "行動力", silver: "防御力" };
 
 
 const FILES = [
@@ -92,8 +92,8 @@ const FILES = [
 
 
 
-const BASE_00_PREFIX = "00メカニカルガール足立";
-const BASE_00_STATS = { red: 10, orange: 10, green: 100, cyan: 20 };
+const BASE_00_PREFIX = "00";
+const BASE_00_STATS = { red: 10, orange: 10, green: 100, cyan: 20, silver: 20 };
 
 const RARITY_BUCKETS = [
   { rarity: "☆☆☆☆☆", count: 10 },
@@ -170,7 +170,15 @@ const rollStats = (key, rarity) => {
     orange: rollStat(BASE_00_STATS.orange, mult, rng),
     green: rollStat(BASE_00_STATS.green, mult, rng),
     cyan: rollStat(BASE_00_STATS.cyan, mult, rng),
+    silver: rollStat(BASE_00_STATS.silver, mult, rng),
   };
+};
+
+// 防御力による被ダメージ補正（100で等倍、20で5倍、200で0.5倍）
+const calcDamageTaken = (rawDmg, defense) => {
+  const def = Math.max(1, defense || 0);
+  const mult = 100 / def;
+  return Math.max(0, Math.ceil(rawDmg * mult));
 };
 
 const enemyImages = import.meta.glob('/enemy/*.png', { eager: true, as: 'url' });
@@ -200,6 +208,7 @@ const INITIAL_MATERIAL = 180;
 const MAX_CANVAS_ITEMS = 20;
 const DRAW_SETTLE_MS_NEW = 1200;
 const DRAW_SETTLE_MS_DUP = 650;
+const MULTI_DRAW_COUNT = 10;
 
 const randItem = () => ITEMS[Math.floor(Math.random() * ITEMS.length)];
 
@@ -241,23 +250,30 @@ function App() {
   const [canvasAspect, setCanvasAspect] = useState(16 / 9);
   const [humanGauge, setHumanGauge] = useState(0);
   const [humanPoints, setHumanPoints] = useState(0);
-  const [handCards, setHandCards] = useState([]);
+  const [holoPulse, setHoloPulse] = useState(false);
+  const [handCards, setHandCards] = useState(Array(5).fill(null));
   const humanGaugeRef = useRef(0);
   const [enemyHP, setEnemyHP] = useState(100);
   const [enemyMaxHP, setEnemyMaxHP] = useState(100);
+  const [enemyHpLag, setEnemyHpLag] = useState(100);
   const [allyHP, setAllyHP] = useState(0);
   const [allyMaxHP, setAllyMaxHP] = useState(0);
+  const [allyHpLag, setAllyHpLag] = useState(0);
   const [enemyAtk, setEnemyAtk] = useState(10);
   const [enemyAct, setEnemyAct] = useState(10);
+  const [enemyDef, setEnemyDef] = useState(20);
   const [enemyHitPulse, setEnemyHitPulse] = useState(0);
+  const [allyHitPulse, setAllyHitPulse] = useState(0);
   const [enemyLastDmg, setEnemyLastDmg] = useState(0);
   const enemyHPRef = useRef(enemyHP);
   const allyHPRef = useRef(allyHP);
   const battleTimerRef = useRef(null);
   const enemyTimerRef = useRef(null);
+  const prevHumanPointsRef = useRef(humanPoints);
   const [allyProgress, setAllyProgress] = useState(0);
   const [enemyProgress, setEnemyProgress] = useState(0);
   const listCycleRef = useRef({});
+  const hitCycleRef = useRef({ key: "", count: 0 });
 
   const dexBodyRef = useRef(null);
   const historyRef = useRef(null);
@@ -319,7 +335,8 @@ const loadEnemies = () => {
       const baseHP = 80 + (idx * 13) % 50;
       const baseAtk = 8 + (idx * 7) % 10;
       const baseAct = 8 + (idx * 5) % 10;
-      return { key: name, img: enemyImages[path] || `/enemy/${name}`, baseHP, baseAtk, baseAct };
+      const baseDef = 70 + (idx * 9) % 70; // 70-139付近で防御をばらつかせる
+      return { key: name, img: enemyImages[path] || `/enemy/${name}`, baseHP, baseAtk, baseAct, baseDef };
     });
     setEnemyRoster(roster);
     return roster;
@@ -329,6 +346,7 @@ const loadEnemies = () => {
     const baseHP = enemy.baseHP;
     const baseAtk = enemy.baseAtk;
     const baseAct = enemy.baseAct;
+    const baseDef = enemy.baseDef ?? 100;
     let mult = 1 + 0.5 * Math.max(0, floorNum - 1);
     if (floorNum % 10 === 0) mult *= 3.0; // ボス強化
     else if (floorNum % 5 === 0) mult *= 2.0; // 中ボス強化
@@ -336,6 +354,7 @@ const loadEnemies = () => {
       hp: Math.max(1, Math.round(baseHP * mult)),
       atk: Math.max(1, Math.round(baseAtk * mult)),
       act: Math.max(1, Math.round(baseAct * mult)),
+      def: Math.max(1, Math.round(baseDef * mult)),
       mult,
     };
   };
@@ -364,8 +383,10 @@ const spawnEnemy = (floorNum) => {
     setCurrentEnemy(pick);
     setEnemyHP(stats.hp);
     setEnemyMaxHP(stats.hp);
+    setEnemyHpLag(stats.hp);
     setEnemyAtk(stats.atk);
     setEnemyAct(stats.act);
+    setEnemyDef(stats.def);
     setEnemyHitPulse(0);
     setEnemyLastDmg(0);
     setEnemyPlaced(true);
@@ -375,14 +396,53 @@ const spawnEnemy = (floorNum) => {
   useEffect(() => { enemyHPRef.current = enemyHP; }, [enemyHP]);
   useEffect(() => { allyHPRef.current = allyHP; }, [allyHP]);
   useEffect(() => { humanGaugeRef.current = humanGauge; }, [humanGauge]);
+  useEffect(() => {
+    if (humanPoints > prevHumanPointsRef.current) {
+      setHoloPulse(true);
+      const timer = setTimeout(() => setHoloPulse(false), 500);
+      prevHumanPointsRef.current = humanPoints;
+      return () => clearTimeout(timer);
+    }
+    prevHumanPointsRef.current = humanPoints;
+  }, [humanPoints]);
 
 
   useEffect(() => {
     if (enemyHitPulse) {
-      const timer = setTimeout(() => setEnemyHitPulse(0), 1500);
+      const timer = setTimeout(() => setEnemyHitPulse(0), 320);
       return () => clearTimeout(timer);
     }
   }, [enemyHitPulse]);
+  useEffect(() => {
+    if (allyHitPulse) {
+      const timer = setTimeout(() => setAllyHitPulse(0), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [allyHitPulse]);
+  useEffect(() => {
+    let t;
+    setEnemyHpLag((prev) => {
+      if (enemyHP >= prev) return enemyHP;
+      t = setTimeout(() => setEnemyHpLag(enemyHP), 200);
+      return prev;
+    });
+    return () => t && clearTimeout(t);
+  }, [enemyHP]);
+  useEffect(() => {
+    let t;
+    setAllyHpLag((prev) => {
+      if (allyHP >= prev) return allyHP;
+      t = setTimeout(() => setAllyHpLag(allyHP), 200);
+      return prev;
+    });
+    return () => t && clearTimeout(t);
+  }, [allyHP]);
+  useEffect(() => {
+    if (allyHitPulse) {
+      const timer = setTimeout(() => setAllyHitPulse(0), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [allyHitPulse]);
 
   useEffect(() => {
     const bgm = audioRefs.bgm.current;
@@ -532,6 +592,7 @@ const spawnEnemy = (floorNum) => {
       setEnemyMaxHP(100);
       setEnemyAtk(10);
       setEnemyAct(10);
+      setEnemyDef(20);
       setHumanGauge(0);
       setHumanPoints(0);
       setHandCards([]);
@@ -590,6 +651,18 @@ const spawnEnemy = (floorNum) => {
     });
   };;
 
+  const handleGachaMulti = (times = MULTI_DRAW_COUNT) => {
+    const need = MATERIAL_COST * times;
+    if (materials < need) {
+      playSound("se5", 0.8);
+      return;
+    }
+    // まとめて回す: 時間差で単発を複数呼び出し（最終結果のみ画面に残る）
+    for (let i = 0; i < times; i += 1) {
+      setTimeout(() => handleGacha(), i * 60);
+    }
+  };
+
   const handleUnlockAll = () => {
     const now = Date.now();
     const allDrawn = {};
@@ -635,14 +708,24 @@ const handleAssembleCore = () => {
     setResult({ type: "canvas" });
   };
 
+  const padHand = (arr) => {
+    const next = [...arr];
+    while (next.length < 5) next.push(null);
+    return next;
+  };
+
   const handleSkillPlay = (card, index) => {
     if (mode !== "battle" || !card) return;
     const cost = card?.skill?.cost ?? 1;
     if (humanPoints < cost) { playSound("se5", 0.7); return; }
     setHumanPoints((p) => Math.max(0, p - cost));
-    const dmg = Math.max(0, Math.floor(canvasTotals.red * 2));
+    const dmg = calcDamageTaken(Math.max(0, Math.floor(canvasTotals.red * 2)), enemyDef);
     playSound("se4", 0.7);
-    setHandCards((prev) => prev.filter((_, i) => i !== index));
+    setHandCards((prev) => {
+      const next = padHand(prev);
+      next[index] = null;
+      return next;
+    });
     setEnemyHP((hp) => {
       if (hp <= 0) return hp;
       const next = Math.max(0, hp - dmg);
@@ -675,7 +758,8 @@ const handleBattle = () => {
   const handleHoloDraw = () => {
     if (mode !== "battle") return;
     if (humanPoints < 1) { playSound("se5", 0.7); return; }
-    if (handCards.length >= 5) { playSound("se5", 0.7); return; }
+    const slotIdx = padHand(handCards).findIndex((c) => !c);
+    if (slotIdx === -1) { playSound("se5", 0.7); return; }
     const withSkill = canvasItems
       .map((c) => lookupItem(c.name))
       .filter((m) => m && m.skill);
@@ -684,8 +768,11 @@ const handleBattle = () => {
       : { name: "情報なし", skill: { name: "情報なし", desc: "スキル未設定", cost: 1 } };
     setHumanPoints((p) => Math.max(0, p - 1));
     setHandCards((prev) => {
-      if (prev.length >= 5) return prev;
-      return [...prev, { name: pick.name, skill: pick.skill || { name: "情報なし", desc: "スキル未設定", cost: 1 } }];
+      const next = padHand(prev);
+      const emptyIdx = next.findIndex((c) => !c);
+      if (emptyIdx === -1) return next;
+      next[emptyIdx] = { name: pick.name, skill: pick.skill || { name: "情報なし", desc: "スキル未設定", cost: 1 } };
+      return next;
     });
   };
 
@@ -721,8 +808,15 @@ const handleBattle = () => {
   };
   const cycleSelectFromHits = (hitIds) => {
     if (!hitIds.length) return null;
-    const currentIdx = hitIds.indexOf(selectedId);
-    const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % hitIds.length : 0;
+    const key = hitIds.join("|");
+    const sameStack = hitCycleRef.current.key === key;
+    const nextCount = sameStack ? hitCycleRef.current.count + 1 : 1;
+    hitCycleRef.current = { key, count: nextCount };
+    const current = selectedId && hitIds.includes(selectedId) ? selectedId : hitIds[0];
+    // 3回目ごとに奥へ送る。それまでは最前面を維持。
+    const shouldCycle = nextCount > 0 && nextCount % 3 === 0;
+    const targetIdx = hitIds.indexOf(current);
+    const nextIdx = shouldCycle ? ((targetIdx >= 0 ? targetIdx : -1) + 1) % hitIds.length : (targetIdx >= 0 ? targetIdx : 0);
     const pick = hitIds[nextIdx];
     setSelectedId(pick);
     return pick;
@@ -1048,9 +1142,10 @@ const handleBattle = () => {
         acc.orange += st.orange || 0;
         acc.green += st.green || 0;
         acc.cyan += st.cyan || 0;
+        acc.silver += st.silver || 0;
       }
       return acc;
-    }, { red: 0, orange: 0, green: 0, cyan: 0 });
+    }, { red: 0, orange: 0, green: 0, cyan: 0, silver: 0 });
   }, [canvasItems]);
 
 
@@ -1090,8 +1185,9 @@ const handleBattle = () => {
         <div className="battle-wrap">
           <div className="battle-scene">
             {allyMaxHP > 0 && (
-              <div className="ally-hp hud hud-top-left">
+              <div className={`ally-hp hud hud-top-left ${allyHitPulse ? "ally-hit" : ""}`}>
                 <div className="ally-hp-bar">
+                  <div className="ally-hp-back" style={{ width: `${Math.max(0, allyHpLag) / (allyMaxHP || 1) * 100}%` }}></div>
                   <div className="ally-hp-fill" style={{ width: `${Math.max(0, allyHP) / (allyMaxHP || 1) * 100}%` }}></div>
                 </div>
                 <div className="ally-hp-text">{allyHP} / {allyMaxHP}</div>
@@ -1112,10 +1208,11 @@ const handleBattle = () => {
               </div>
             )}
             {mode === "battle" && (enemyPlaced || enemyDying) && (
-              <div className="enemy-hp hud hud-top-out">
+              <div className={`enemy-hp hud hud-top-out ${enemyHitPulse ? "hit" : ""}`}>
                 <div className="floor-label">FLOOR {floor}</div>
                 <div className="enemy-hp-main">
                   <div className="enemy-hp-bar">
+                    <div className="enemy-hp-back" style={{ width: `${Math.max(0, enemyHpLag) / (enemyMaxHP || 1) * 100}%` }}></div>
                     <div className="enemy-hp-fill" style={{ width: `${Math.max(0, enemyHP) / (enemyMaxHP || 1) * 100}%` }}></div>
                   </div>
                   <div className="enemy-hp-text">{enemyHP} / {enemyMaxHP}</div>
@@ -1124,7 +1221,6 @@ const handleBattle = () => {
               </div>
             )}
             <div className="battle-clip left-offset" style={clipStyle}>
-
               <div className="battle-guide" style={guideStyle}></div>
               {canvasItems.map((c) => (
                 <div
@@ -1145,13 +1241,17 @@ const handleBattle = () => {
               <div className="battle-hand">
                 <div className="hand-list">
                   {Array.from({ length: 5 }, (_, idx) => handCards[idx] || null).map((h, idx) => (
-                    h ? (
-                      <div className="hand-card filled" key={`hand-${idx}`} onClick={() => handleSkillPlay(h, idx)}>
+                    h ? (() => {
+                      const cost = h.skill?.cost ?? 1;
+                      const usable = humanPoints >= cost;
+                      return (
+                      <div className={`hand-card filled ${usable ? "" : "disabled"}`} key={`hand-${idx}`} onClick={() => handleSkillPlay(h, idx)}>
                         <div className="hand-name">{h.name}</div>
                         <div className="hand-skill">{h.skill?.name || "情報なし"}</div>
-                        <div className="hand-cost">消費: {h.skill?.cost ?? 1}</div>
+                        <div className="hand-cost">消費: {cost}</div>
                       </div>
-                    ) : (
+                      );
+                    })() : (
                       <div className="hand-card empty" key={`hand-empty-${idx}`}>
                         <div className="hand-name">空き</div>
                         <div className="hand-skill">滅ぼしドローで補充</div>
@@ -1159,7 +1259,7 @@ const handleBattle = () => {
                     )
                   ))}
                 </div>
-                <button className="toggle holo-draw-btn" onClick={handleHoloDraw} disabled={humanPoints < 1}>滅ドロー ({Math.max(0, humanPoints)})</button>
+                <button className={`toggle holo-draw-btn ${holoPulse ? "pulse" : ""}`} onClick={handleHoloDraw} disabled={humanPoints < 1}>滅ドロー ({Math.max(0, humanPoints)})</button>
               </div>
             )}
           </div>
@@ -1177,6 +1277,7 @@ const handleBattle = () => {
               setEnemyMaxHP(100);
               setEnemyAtk(10);
               setEnemyAct(10);
+              setEnemyDef(20);
               setHumanGauge(0);
               setHumanPoints((v) => v);
               setAllyHP(canvasTotals.green);
@@ -1187,7 +1288,7 @@ const handleBattle = () => {
           >戦闘開始！</button>
         )}
         {mode === "battle" && (enemyPlaced || enemyDying) && (
-          <div className={`battle-enemy ${enemyDying ? "dying" : ""}`}>
+          <div className={`battle-enemy ${enemyDying ? "dying" : ""} ${enemyHitPulse ? "hit" : ""}`}>
             <img src={currentEnemy?.img || "/enemy/人類.png"} alt={currentEnemy?.key || "敵"} />
             {enemyHitPulse ? (
               <div key={enemyHitPulse} className="enemy-dmg enemy-dmg-float">-{enemyLastDmg}</div>
@@ -1256,6 +1357,7 @@ const handleBattle = () => {
                   <span>{STAT_LABELS.orange}: {drawnStats.orange}</span>
                   <span>{STAT_LABELS.green}: {drawnStats.green}</span>
                   <span>{STAT_LABELS.cyan}: {drawnStats.cyan}</span>
+                  <span>{STAT_LABELS.silver}: {drawnStats.silver}</span>
                 </div>
               ) : (
                 <div className="meta stats-line">ステータス: 情報なし</div>
@@ -1263,19 +1365,31 @@ const handleBattle = () => {
               <div className="meta skill-line">{drawnMeta.skill ? `滅ぼしスキル: ${drawnMeta.skill.name}（${drawnMeta.skill.desc}）` : "滅ぼしスキル: 情報なし"}</div>
               <div className="meta">
                 <span>回数… {result.count} 回</span>
-                <span>時刻… {new Date(result.at).toLocaleString()}</span>
+              <span>時刻… {new Date(result.at).toLocaleString()}</span>
               </div>
             </div>
           </div>
-          <div className={`draw-action ${canShowAgain ? "visible" : ""}`} aria-hidden={!canShowAgain}>
-            <button className="cta-again" onClick={handleGacha} disabled={materials < MATERIAL_COST}>
-              <div className="cta-again-main">もう1体</div>
-              <div className="cta-again-sub">素材-100</div>
-            </button>
-            <div className="cta-note">素材: {materials}</div>
-            {materials < MATERIAL_COST && <div className="cta-note warning">素材が足りません</div>}
+            <div className="draw-actions-stack">
+              <div className={`draw-action ${canShowAgain ? "visible" : ""}`} aria-hidden={!canShowAgain}>
+                <button className="cta-again" onClick={handleGacha} disabled={materials < MATERIAL_COST}>
+                  <div className="cta-again-main">もう1体</div>
+                  <div className="cta-again-sub">素材-100</div>
+                </button>
+                <div className="cta-note">素材: {materials}</div>
+                {materials < MATERIAL_COST && <div className="cta-note warning">素材が足りません</div>}
+              </div>
+              <div className={`draw-action draw-multi ${canShowAgain ? "visible" : ""}`} aria-hidden={!canShowAgain}>
+                <button
+                  className="cta-again"
+                  onClick={() => handleGachaMulti()}
+                  disabled={materials < MATERIAL_COST * MULTI_DRAW_COUNT}
+                >
+                  <div className="cta-again-main">もう10体</div>
+                  <div className="cta-again-sub">素材-{MATERIAL_COST * MULTI_DRAW_COUNT}</div>
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
       );
     }
     return (
@@ -1308,7 +1422,7 @@ const handleBattle = () => {
       if (canvasTotals.red > 0) {
         setEnemyHP((hp) => {
           if (hp <= 0) return hp;
-          const dmg = canvasTotals.red;
+          const dmg = calcDamageTaken(canvasTotals.red, enemyDef);
           const next = Math.max(0, hp - dmg);
           setEnemyLastDmg(dmg);
           setEnemyHitPulse((v) => v + 1);
@@ -1338,8 +1452,9 @@ const handleBattle = () => {
       if (enemyHPRef.current <= 0) return;
       setAllyHP((hp) => {
         if (hp <= 0) return hp;
-        const dmg = enemyAtk;
+        const dmg = calcDamageTaken(enemyAtk, canvasTotals.silver);
         const next = Math.max(0, hp - dmg);
+        setAllyHitPulse((v) => v + 1);
         if (next <= 0) {
           triggerGameOver();
           return 0;
@@ -1362,7 +1477,7 @@ const handleBattle = () => {
       setAllyProgress(0);
       setEnemyProgress(0);
     };
-  }, [mode, enemyPlaced, canvasTotals.red, canvasTotals.orange, canvasTotals.cyan, enemyAct, enemyAtk]);
+  }, [mode, enemyPlaced, canvasTotals.red, canvasTotals.orange, canvasTotals.cyan, canvasTotals.silver, enemyAct, enemyAtk, enemyDef]);
 
   const handleDexWheel = (e) => {
     if (activeTab === "catalog") {
@@ -1427,6 +1542,7 @@ const handleBattle = () => {
                   <div className="lamp amber" onMouseEnter={() => setHoverStat(`滅ぼし力: ${canvasTotals.orange}`)} onMouseLeave={() => setHoverStat("")} title={`滅ぼし力: ${canvasTotals.orange}`}></div>
                   <div className="lamp green" onMouseEnter={() => setHoverStat(`体力: ${canvasTotals.green}`)} onMouseLeave={() => setHoverStat("")} title={`体力: ${canvasTotals.green}`}></div>
                   <div className="lamp blue" onMouseEnter={() => setHoverStat(`行動力: ${canvasTotals.cyan}`)} onMouseLeave={() => setHoverStat("")} title={`行動力: ${canvasTotals.cyan}`}></div>
+                  <div className="lamp silver" onMouseEnter={() => setHoverStat(`防御力: ${canvasTotals.silver}`)} onMouseLeave={() => setHoverStat("")} title={`防御力: ${canvasTotals.silver}`}></div>
                   <div className="stat-hover-text">{hoverStat}</div>
                   <button className="toggle" onClick={() => setBgmOn((v) => !v)}>{bgmOn ? "BGM: ON" : "BGM: OFF"}</button>
                   <div className="volume">
@@ -1476,6 +1592,7 @@ const handleBattle = () => {
                             <div className="stat-led orange"><span className="dot"></span><span>{STAT_LABELS.orange}: {ownedStats.orange}</span></div>
                             <div className="stat-led green"><span className="dot"></span><span>{STAT_LABELS.green}: {ownedStats.green}</span></div>
                             <div className="stat-led cyan"><span className="dot"></span><span>{STAT_LABELS.cyan}: {ownedStats.cyan}</span></div>
+                            <div className="stat-led silver"><span className="dot"></span><span>{STAT_LABELS.silver}: {ownedStats.silver}</span></div>
                           </div>
                         ) : null}
                         <div className="stat-meta">
