@@ -118,6 +118,7 @@ const LS_CANVAS = "gacha_canvas_v1";
 const MATERIAL_COST = 100;
 const INITIAL_MATERIAL = 150;
 const MAX_CANVAS_ITEMS = 20;
+const DRAW_SETTLE_MS = 1700;
 
 const randItem = () => ITEMS[Math.floor(Math.random() * ITEMS.length)];
 
@@ -141,6 +142,7 @@ function App() {
   const [lastDrawnName, setLastDrawnName] = useState(null);
   const [shakeName, setShakeName] = useState(null);
   const [drawPulse, setDrawPulse] = useState(0);
+  const [showAnother, setShowAnother] = useState(false);
   const [ownedHover, setOwnedHover] = useState(null);
   const [materials, setMaterials] = useState(INITIAL_MATERIAL);
   const [enemyPlaced, setEnemyPlaced] = useState(false);
@@ -259,22 +261,24 @@ const loadEnemies = () => {
 
   function handleEnemyDefeat() {
     const multInfo = currentEnemy ? calcEnemyStats(currentEnemy, floor).mult : 1;
-    const drop = Math.max(1, Math.round(100 * multInfo));
+    const drop = Math.max(1, Math.round(20 * multInfo));
     setMaterials((m) => m + drop);
-    setFloor((f) => f + 1);
+    const nextFloor = floor + 1;
+    setFloor(nextFloor);
     clearBattleTimers();
     setEnemyPlaced(false);
     setEnemyDying(true);
     setTimeout(() => {
-      spawnEnemy();
+      spawnEnemy(nextFloor);
     }, 800);
   }
 
-const spawnEnemy = () => {
+const spawnEnemy = (floorNum) => {
     setEnemyDying(false);
     const roster = enemyRoster.length ? enemyRoster : loadEnemies();
     const pick = roster[Math.floor(Math.random() * roster.length)];
-    const stats = calcEnemyStats(pick, floor);
+    const targetFloor = floorNum ?? floor;
+    const stats = calcEnemyStats(pick, targetFloor);
     setCurrentEnemy(pick);
     setEnemyHP(stats.hp);
     setEnemyMaxHP(stats.hp);
@@ -402,6 +406,15 @@ const spawnEnemy = () => {
     const timer = setTimeout(() => setShakeName(null), 350);
     return () => clearTimeout(timer);
   }, [shakeName]);
+
+  useEffect(() => {
+    if (result?.type === "item") {
+      setShowAnother(false);
+      const timer = setTimeout(() => setShowAnother(true), DRAW_SETTLE_MS);
+      return () => clearTimeout(timer);
+    }
+    setShowAnother(false);
+  }, [result, drawPulse]);
   // キャンバスの縦横比を保持（バトル表示の中央正方形クロップ用）
   useEffect(() => {
     const updateAspect = () => {
@@ -451,6 +464,7 @@ const spawnEnemy = () => {
 
   const handleDrawCore = () => {
     setMode("normal");
+    setActiveTab("catalog");
     setEnemyPlaced(false);
     setPreviewPos(null);
     setPreviewItem(null);
@@ -475,11 +489,12 @@ const spawnEnemy = () => {
       const firstItem = ITEMS.find((i) => i.key.startsWith("00"));
       const item = isFirstDraw && firstItem ? firstItem : randItem();
       const now = Date.now();
+      const isNew = !drawnMap[item.key];
       setDrawnMap((prev) => ({ ...prev, [item.key]: prev[item.key] || now }));
       setCountsMap((prev) => ({ ...prev, [item.key]: (prev[item.key] || 0) + 1 }));
       const nextCount = drawCount + 1;
       setDrawCount(nextCount);
-      setResult({ type: "item", item, at: now, count: nextCount });
+      setResult({ type: "item", item, at: now, count: nextCount, isNew });
       setLastDrawnName(item.key);
       setDrawPulse((p) => p + 1);
       return m - MATERIAL_COST;
@@ -519,6 +534,7 @@ const spawnEnemy = () => {
 const handleAssembleCore = () => {
     playSound("se6", 0.6);
     setMode("canvas");
+    setActiveTab("owned");
     setEnemyPlaced(false);
     setPreviewPos(null);
     setPreviewItem(null);
@@ -995,17 +1011,20 @@ const handleBattle = () => {
               <div className="battle-hand">
                 <button className="toggle" onClick={handleHoloDraw} disabled={humanPoints < 1}>滅ぼしドロー ({Math.max(0, humanPoints)})</button>
                 <div className="hand-list">
-                  {handCards.length === 0 ? (
-                    <div className="hand-empty">手札なし</div>
-                  ) : (
-                    handCards.map((h, idx) => (
+                  {Array.from({ length: 5 }, (_, idx) => handCards[idx] || null).map((h, idx) => (
+                    h ? (
                       <div className="hand-card" key={`hand-${idx}`} onClick={() => handleSkillPlay(h, idx)}>
                         <div className="hand-name">{h.name}</div>
                         <div className="hand-skill">{h.skill?.name || "情報なし"}</div>
                         <div className="hand-cost">消費: {h.skill?.cost ?? 1}</div>
                       </div>
-                    ))
-                  )}
+                    ) : (
+                      <div className="hand-card empty" key={`hand-empty-${idx}`}>
+                        <div className="hand-name">空き</div>
+                        <div className="hand-skill">滅ぼしドローで補充</div>
+                      </div>
+                    )
+                  ))}
                 </div>
               </div>
             )}
@@ -1081,34 +1100,58 @@ const handleBattle = () => {
     if (result.type === "item" && result.item) {
       const drawnMeta = lookupItem(result.item.name) || {};
       const drawnStats = lookupStats(result.item.name);
+      const isNewDraw = Boolean(result.isNew);
+      const canShowAgain = showAnother;
       return (
-        <div key={`result-${drawPulse}`} className="card with-image got draw-anim">
-          <div className="thumb">
-            <img src={result.item.img} alt={result.item.name} />
-          </div>
-          <div className="draw-info">
-            <div className="item">{result.item.name}</div>
-            <div className="draw-rare-line">{drawnMeta.rarity ? `レアリティ: ${drawnMeta.rarity}` : "レアリティ: 情報なし"}</div>
-            {drawnStats ? (
-              <div className="meta stats-line">
-                <span>{STAT_LABELS.red}: {drawnStats.red}</span>
-                <span>{STAT_LABELS.orange}: {drawnStats.orange}</span>
-                <span>{STAT_LABELS.green}: {drawnStats.green}</span>
-                <span>{STAT_LABELS.cyan}: {drawnStats.cyan}</span>
-              </div>
-            ) : (
-              <div className="meta stats-line">ステータス: 情報なし</div>
-            )}
-            <div className="meta skill-line">{drawnMeta.skill ? `滅ぼしスキル: ${drawnMeta.skill.name}（${drawnMeta.skill.desc}）` : "滅ぼしスキル: 情報なし"}</div>
-            <div className="meta">
-              <span>回数… {result.count} 回</span>
-              <span>時刻… {new Date(result.at).toLocaleString()}</span>
+        <div key={`result-${drawPulse}`} className={`result-grid ${canShowAgain ? "show-action" : ""}`}>
+          <div className={`card with-image got draw-anim ${isNewDraw ? "new-card" : ""}`}>
+            {isNewDraw && <div className="new-ribbon">NEW!</div>}
+            <div className={`thumb ${isNewDraw ? "new-thumb" : ""}`}>
+              <img src={result.item.img} alt={result.item.name} />
             </div>
+            <div className="draw-info">
+              <div className="item-row">
+                <div className="item">{result.item.name}</div>
+                {isNewDraw && <span className="new-chip">NEW!</span>}
+              </div>
+              <div className="draw-rare-line">{drawnMeta.rarity ? `レアリティ: ${drawnMeta.rarity}` : "レアリティ: 情報なし"}</div>
+              {drawnStats ? (
+                <div className="meta stats-line">
+                  <span>{STAT_LABELS.red}: {drawnStats.red}</span>
+                  <span>{STAT_LABELS.orange}: {drawnStats.orange}</span>
+                  <span>{STAT_LABELS.green}: {drawnStats.green}</span>
+                  <span>{STAT_LABELS.cyan}: {drawnStats.cyan}</span>
+                </div>
+              ) : (
+                <div className="meta stats-line">ステータス: 情報なし</div>
+              )}
+              <div className="meta skill-line">{drawnMeta.skill ? `滅ぼしスキル: ${drawnMeta.skill.name}（${drawnMeta.skill.desc}）` : "滅ぼしスキル: 情報なし"}</div>
+              <div className="meta">
+                <span>回数… {result.count} 回</span>
+                <span>時刻… {new Date(result.at).toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+          <div className={`draw-action ${canShowAgain ? "visible" : ""}`} aria-hidden={!canShowAgain}>
+            <button className="cta-again" onClick={handleGacha} disabled={materials < MATERIAL_COST}>
+              <div className="cta-again-main">もう1体</div>
+              <div className="cta-again-sub">素材-100</div>
+            </button>
+            <div className="cta-note">素材: {materials}</div>
+            {materials < MATERIAL_COST && <div className="cta-note warning">素材が足りません</div>}
           </div>
         </div>
       );
     }
-    return <div className="small">作るボタンでガチャを回してください。</div>;
+    return (
+      <div className="draw-empty">
+        <button className="cta-large" onClick={handleGacha} disabled={materials < MATERIAL_COST}>
+          <div className="cta-large-title">足立を作る</div>
+          <div className="cta-large-sub">(素材-100)</div>
+        </button>
+        <div className="cta-note">素材: {materials}{materials < MATERIAL_COST ? " / 足りません" : ""}</div>
+      </div>
+    );
   })();
 
 
@@ -1225,11 +1268,11 @@ const handleBattle = () => {
           <div className="side-panel right"><div className="side-window"></div></div>
           <div className="hazard-bar"></div>
 
-          <div className="panel">
+            <div className="panel">
             <div className="monitor-bar">
-              <button className="monitor-btn" id="drawBtn" onMouseEnter={() => playSound("se3", 0.65)} onClick={handleDraw}>作る</button>
-              <button className="monitor-btn" id="assembleBtn" onClick={handleAssemble}>組み立てる</button>
-              <button className="monitor-btn" id="battleBtn" onClick={handleBattle}>戦闘</button>
+              <button className={`monitor-btn ${mode === "normal" ? "active" : "inactive"}`} id="drawBtn" onMouseEnter={() => playSound("se3", 0.65)} onClick={handleDraw}>作る</button>
+              <button className={`monitor-btn ${mode === "canvas" ? "active" : "inactive"}`} id="assembleBtn" onClick={handleAssemble}>組み立てる</button>
+              <button className={`monitor-btn ${mode === "battle" ? "active" : "inactive"}`} id="battleBtn" onClick={handleBattle}>戦闘</button>
             </div>
 
             <div className="monitor-screen">
@@ -1262,7 +1305,6 @@ const handleBattle = () => {
                       onChange={(e) => setBgmVol(Number(e.target.value))}
                     />
                   </div>
-                  <button className="toggle" onClick={handleGacha} disabled={materials < MATERIAL_COST}>ガチャ</button>
                   <span className="material-info">素材: {materials}</span>
                   <button className="toggle" onClick={handleUnlockAll}>全キャラ入手</button>
                 </div>
