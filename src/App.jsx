@@ -257,6 +257,7 @@ function App() {
   const enemyTimerRef = useRef(null);
   const [allyProgress, setAllyProgress] = useState(0);
   const [enemyProgress, setEnemyProgress] = useState(0);
+  const listCycleRef = useRef({});
 
   const dexBodyRef = useRef(null);
   const historyRef = useRef(null);
@@ -707,6 +708,35 @@ const handleBattle = () => {
   const CANVAS_MARGIN_Y = 29;  // 縦方向の余白％（飛び出し防止を強め）
   const clampX = (v) => Math.min(100 - CANVAS_MARGIN_X, Math.max(CANVAS_MARGIN_X, v));
   const clampY = (v) => Math.min(100 - CANVAS_MARGIN_Y, Math.max(CANVAS_MARGIN_Y, v));
+  const getHitStack = (clientX, clientY) => {
+    const els = document.elementsFromPoint(clientX, clientY) || [];
+    const ids = [];
+    els.forEach((el) => {
+      if (el?.classList?.contains("canvas-item")) {
+        const id = el.getAttribute("data-id");
+        if (id && !ids.includes(id)) ids.push(id);
+      }
+    });
+    return ids;
+  };
+  const cycleSelectFromHits = (hitIds) => {
+    if (!hitIds.length) return null;
+    const currentIdx = hitIds.indexOf(selectedId);
+    const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % hitIds.length : 0;
+    const pick = hitIds[nextIdx];
+    setSelectedId(pick);
+    return pick;
+  };
+  const cycleSelectByName = (name) => {
+    const matches = canvasItems.filter((c) => c.name === name);
+    if (!matches.length) return null;
+    const last = listCycleRef.current[name] ?? -1;
+    const next = (last + 1) % matches.length;
+    listCycleRef.current[name] = next;
+    const pick = matches[next];
+    setSelectedId(pick.id);
+    return pick.id;
+  };
 
   const addToCanvas = (item, xPerc, yPerc) => {
     if (mode !== "canvas") return;
@@ -813,19 +843,23 @@ const handleBattle = () => {
     e.stopPropagation();
     const board = canvasRef.current;
     if (!board) return;
+    const hits = getHitStack(e.clientX, e.clientY);
+    const targetId = hits.length ? cycleSelectFromHits(hits) : item.id;
+    const targetItem = canvasItems.find((c) => c.id === targetId) || item;
     const rect = board.getBoundingClientRect();
     const pointerX = ((e.clientX - rect.left) / rect.width) * 100;
     const pointerY = ((e.clientY - rect.top) / rect.height) * 100;
-    const itemRect = e.currentTarget.getBoundingClientRect();
+    const targetEl = targetId ? document.querySelector(`[data-id="${targetId}"]`) : null;
+    const itemRect = targetEl?.getBoundingClientRect() || e.currentTarget.getBoundingClientRect();
     dragOffsetRef.current = {
-      offsetX: pointerX - item.x,
-      offsetY: pointerY - item.y,
+      offsetX: pointerX - targetItem.x,
+      offsetY: pointerY - targetItem.y,
       halfW: (itemRect.width / rect.width) * 50,
       halfH: (itemRect.height / rect.height) * 50,
     };
     window.addEventListener("mousemove", handleCanvasMouseMove);
     window.addEventListener("mouseup", handleCanvasMouseUp);
-    setSelectedId(item.id);
+    setSelectedId(targetItem.id);
     setIsDragging(true);
   };
 
@@ -950,6 +984,7 @@ const handleBattle = () => {
   const ownedStack = ownedItems.map((item, idx) => {
     const remaining = availableCount(item.key);
     const depleted = remaining <= 0;
+    const hasPlaced = canvasItems.some((c) => c.name === item.name);
     const jitterX = ((idx * 17) % 10) - 5;
     const jitterY = ((idx * 13) % 12) - 6;
     const baseLeft = 30 + idx * 64 + jitterX;
@@ -974,11 +1009,18 @@ const handleBattle = () => {
         onDragStart={(e) => handleDragStart(item, e)}
         onDragEnd={handleDragEnd}
         onClick={() => {
-          if (mode === "canvas" && !depleted) {
-            addToCanvas(item);
-            playSound("se4", 0.65);
-          } else if (mode === "canvas" && depleted) {
-            playSound("se5", 0.7);
+          if (mode === "canvas") {
+            const selected = cycleSelectByName(item.name);
+            if (selected) {
+              playSound("se4", 0.55);
+              return;
+            }
+            if (!depleted) {
+              addToCanvas(item);
+              playSound("se4", 0.65);
+            } else {
+              playSound("se5", 0.7);
+            }
           }
         }}
       >
@@ -1088,6 +1130,7 @@ const handleBattle = () => {
                 <div
                   key={c.id}
                   className="battle-item"
+                  data-id={c.id}
                   style={{
                     left: `${c.x}%`,
                     top: `${c.y}%`,
@@ -1170,6 +1213,7 @@ const handleBattle = () => {
             <div
               key={c.id}
               className={`canvas-item ${selectedId === c.id ? "selected" : ""}`}
+              data-id={c.id}
               style={{ left: `${c.x}%`, top: `${c.y}%`, "--scale": c.scale || 1 }}
               onMouseDown={(e) => handleCanvasItemMouseDown(c, e)}
             >
