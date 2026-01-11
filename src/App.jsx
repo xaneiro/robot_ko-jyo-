@@ -118,7 +118,8 @@ const LS_CANVAS = "gacha_canvas_v1";
 const MATERIAL_COST = 100;
 const INITIAL_MATERIAL = 150;
 const MAX_CANVAS_ITEMS = 20;
-const DRAW_SETTLE_MS = 1700;
+const DRAW_SETTLE_MS_NEW = 1200;
+const DRAW_SETTLE_MS_DUP = 650;
 
 const randItem = () => ITEMS[Math.floor(Math.random() * ITEMS.length)];
 
@@ -297,7 +298,7 @@ const spawnEnemy = (floorNum) => {
 
   useEffect(() => {
     if (enemyHitPulse) {
-      const timer = setTimeout(() => setEnemyHitPulse(0), 1000);
+      const timer = setTimeout(() => setEnemyHitPulse(0), 1500);
       return () => clearTimeout(timer);
     }
   }, [enemyHitPulse]);
@@ -409,8 +410,14 @@ const spawnEnemy = (floorNum) => {
 
   useEffect(() => {
     if (result?.type === "item") {
-      setShowAnother(false);
-      const timer = setTimeout(() => setShowAnother(true), DRAW_SETTLE_MS);
+      const isNew = Boolean(result.isNew);
+      const delay = isNew ? DRAW_SETTLE_MS_NEW : DRAW_SETTLE_MS_DUP;
+      if (!isNew) {
+        setShowAnother(true);
+      } else {
+        setShowAnother(false);
+      }
+      const timer = setTimeout(() => setShowAnother(true), delay);
       return () => clearTimeout(timer);
     }
     setShowAnother(false);
@@ -497,6 +504,7 @@ const spawnEnemy = (floorNum) => {
       setResult({ type: "item", item, at: now, count: nextCount, isNew });
       setLastDrawnName(item.key);
       setDrawPulse((p) => p + 1);
+      setShowAnother(!isNew); // 重複カードは即座に左寄せ＋再抽選準備
       return m - MATERIAL_COST;
     });
   };;
@@ -926,40 +934,12 @@ const handleBattle = () => {
         clipStyle = { clipPath: `inset(${m}% 0% ${m}% 0%)` };
         guideStyle = { position: "absolute", top: `${m}%`, bottom: `${m}%`, left: "0%", right: "0%" };
       }
-            const gaugeList = [
-        { key: "red", label: STAT_LABELS.red, value: canvasTotals.red, cls: "red" },
-        { key: "orange", label: STAT_LABELS.orange, value: canvasTotals.orange, cls: "orange" },
-        { key: "green", label: STAT_LABELS.green, value: canvasTotals.green, cls: "green" },
-        { key: "cyan", label: STAT_LABELS.cyan, value: canvasTotals.cyan, cls: "cyan" },
-      ];
-      const maxGauge = Math.max(1, ...gaugeList.map((g) => g.value || 0));
       const humanGaugeMax = 100;
       const humanGaugeVal = Math.min(humanGaugeMax, Math.max(0, humanGauge));
       const healthVal = canvasTotals.green;
       const canBattle = healthVal > 0;
       return (
         <div className="battle-wrap">
-          <div className="battle-gauges">
-            <div className="gauge-row-set">
-              {gaugeList.map((g) => (
-                <div className="gauge-row" key={g.key}>
-                  <div className="gauge-label">{g.label}</div>
-                  <div className="gauge-bar">
-                    <div className={`gauge-fill ${g.cls}`} style={{ width: `${(g.value / maxGauge) * 100}%` }}></div>
-                  </div>
-                  <div className="gauge-val">{g.value}</div>
-                </div>
-              ))}
-            </div>
-            <div className="human-meter">
-              <span className="human-label">人類滅ぼしゲージ</span>
-              <div className="human-bar">
-                <div className="human-fill" style={{ width: `${humanGaugeVal}%` }}></div>
-              </div>
-              <span className="human-val">{humanGaugeVal}/100</span>
-              <span className="human-points">ポイント: {humanPoints}</span>
-            </div>
-          </div>
           <div className="battle-scene">
             {allyMaxHP > 0 && (
               <div className="ally-hp hud hud-top-left">
@@ -967,15 +947,20 @@ const handleBattle = () => {
                   <div className="ally-hp-fill" style={{ width: `${Math.max(0, allyHP) / (allyMaxHP || 1) * 100}%` }}></div>
                 </div>
                 <div className="ally-hp-text">{allyHP} / {allyMaxHP}</div>
-              </div>
-            )}
-            {allyMaxHP > 0 && (
-              <div className="ally-hp hud hud-top-left">
-                <div className="ally-hp-bar">
-                  <div className="ally-hp-fill" style={{ width: `${Math.max(0, allyHP) / (allyMaxHP || 1) * 100}%` }}></div>
+                <div className="ally-extra">
+                  <div className="ally-action">
+                    <span className="action-label">攻撃まで</span>
+                    <div className="action-progress ally"><div className="action-fill" style={{ width: `${Math.min(100, allyProgress)}%` }}></div></div>
+                  </div>
+                  <div className="human-meter compact">
+                    <span className="human-label">人類滅ぼしゲージ</span>
+                    <div className="human-bar">
+                      <div className="human-fill" style={{ width: `${humanGaugeVal}%` }}></div>
+                    </div>
+                    <span className="human-val">{humanGaugeVal}/100</span>
+                    <span className="human-points">ポイント: {humanPoints}</span>
+                  </div>
                 </div>
-                <div className="ally-hp-text">{allyHP} / {allyMaxHP}</div>
-                <div className="action-progress"><div className="action-fill" style={{ width: `${Math.min(100, allyProgress)}%` }}></div></div>
               </div>
             )}
             {mode === "battle" && (enemyPlaced || enemyDying) && (
@@ -1009,11 +994,10 @@ const handleBattle = () => {
             </div>
             {mode === "battle" && (enemyPlaced || enemyDying) && (
               <div className="battle-hand">
-                <button className="toggle" onClick={handleHoloDraw} disabled={humanPoints < 1}>滅ぼしドロー ({Math.max(0, humanPoints)})</button>
                 <div className="hand-list">
                   {Array.from({ length: 5 }, (_, idx) => handCards[idx] || null).map((h, idx) => (
                     h ? (
-                      <div className="hand-card" key={`hand-${idx}`} onClick={() => handleSkillPlay(h, idx)}>
+                      <div className="hand-card filled" key={`hand-${idx}`} onClick={() => handleSkillPlay(h, idx)}>
                         <div className="hand-name">{h.name}</div>
                         <div className="hand-skill">{h.skill?.name || "情報なし"}</div>
                         <div className="hand-cost">消費: {h.skill?.cost ?? 1}</div>
@@ -1026,6 +1010,7 @@ const handleBattle = () => {
                     )
                   ))}
                 </div>
+                <button className="toggle holo-draw-btn" onClick={handleHoloDraw} disabled={humanPoints < 1}>滅ドロー ({Math.max(0, humanPoints)})</button>
               </div>
             )}
           </div>
@@ -1372,7 +1357,7 @@ const handleBattle = () => {
         <div className="gameover-overlay" onClick={() => {
           setGameOver({ visible: false, floor: 1 });
           setFloor(1);
-          setMode("normal");
+          setMode("battle");
           setEnemyPlaced(false);
           setEnemyDying(false);
           setEnemyHP(100);
