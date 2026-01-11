@@ -293,7 +293,7 @@ const spawnEnemy = () => {
 
   useEffect(() => {
     if (enemyHitPulse) {
-      const timer = setTimeout(() => setEnemyHitPulse(0), 600);
+      const timer = setTimeout(() => setEnemyHitPulse(0), 1000);
       return () => clearTimeout(timer);
     }
   }, [enemyHitPulse]);
@@ -964,11 +964,13 @@ const handleBattle = () => {
             )}
             {mode === "battle" && (enemyPlaced || enemyDying) && (
               <div className="enemy-hp hud hud-top-out">
-                <div className="enemy-hp-bar">
-                  <div className="enemy-hp-fill" style={{ width: `${Math.max(0, enemyHP) / (enemyMaxHP || 1) * 100}%` }}></div>
+                <div className="floor-label">FLOOR {floor}</div>
+                <div className="enemy-hp-main">
+                  <div className="enemy-hp-bar">
+                    <div className="enemy-hp-fill" style={{ width: `${Math.max(0, enemyHP) / (enemyMaxHP || 1) * 100}%` }}></div>
+                  </div>
+                  <div className="enemy-hp-text">{enemyHP} / {enemyMaxHP}</div>
                 </div>
-                <div className="enemy-hp-text">{enemyHP} / {enemyMaxHP}</div><div className="floor-label">{floor}F</div>
-                {enemyHitPulse ? <div className="enemy-dmg">-{enemyLastDmg}</div> : null}
                 <div className="action-progress"><div className="action-fill enemy" style={{ width: `${Math.min(100, enemyProgress)}%` }}></div></div>
               </div>
             )}
@@ -1034,6 +1036,9 @@ const handleBattle = () => {
         {mode === "battle" && (enemyPlaced || enemyDying) && (
           <div className={`battle-enemy ${enemyDying ? "dying" : ""}`}>
             <img src={currentEnemy?.img || "/enemy/人類.png"} alt={currentEnemy?.key || "敵"} />
+            {enemyHitPulse ? (
+              <div key={enemyHitPulse} className="enemy-dmg enemy-dmg-float">-{enemyLastDmg}</div>
+            ) : null}
           </div>
         )}
         </div>
