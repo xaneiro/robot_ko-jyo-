@@ -205,7 +205,7 @@ const LS_COUNTS = "gacha_card_counts_v1";
 const LS_CANVAS = "gacha_canvas_v1";
 const MATERIAL_COST = 100;
 const INITIAL_MATERIAL = 180;
-const MAX_CANVAS_ITEMS = 20;
+const MAX_CANVAS_RARITY = 20;
 const DRAW_SETTLE_MS_NEW = 1200;
 const DRAW_SETTLE_MS_DUP = 650;
 const MULTI_DRAW_COUNT = 10;
@@ -265,6 +265,8 @@ function App() {
   const [enemyHitPulse, setEnemyHitPulse] = useState(0);
   const [allyHitPulse, setAllyHitPulse] = useState(0);
   const [enemyLastDmg, setEnemyLastDmg] = useState(0);
+  const [allyLastDmg, setAllyLastDmg] = useState(0);
+  const [skillNote, setSkillNote] = useState(null);
   const enemyHPRef = useRef(enemyHP);
   const allyHPRef = useRef(allyHP);
   const battleTimerRef = useRef(null);
@@ -720,6 +722,14 @@ const handleAssembleCore = () => {
     if (humanPoints < cost) { playSound("se5", 0.7); return; }
     setHumanPoints((p) => Math.max(0, p - cost));
     const dmg = calcDamageTaken(Math.max(0, Math.floor(canvasTotals.red * 2)), enemyDef);
+    setSkillNote({
+      id: Date.now(),
+      lines: [
+        `${card.name} の`,
+        `${card.skill?.name || "不明スキル"}！`,
+        `敵に ${dmg} ダメージ`,
+      ],
+    });
     playSound("se4", 0.7);
     setHandCards((prev) => {
       const next = padHand(prev);
@@ -837,7 +847,10 @@ const handleBattle = () => {
     const itemKey = item.key || item.name;
     const ownedCount = countsMap[itemKey] || 0;
     setCanvasItems((prev) => {
-      if (prev.length >= MAX_CANVAS_ITEMS) {
+      const meta = lookupItem(item.name) || item;
+      const rarityCost = rarityValue(meta);
+      const currentRarity = computeRaritySum(prev);
+      if (currentRarity + rarityCost > MAX_CANVAS_RARITY) {
         playSound("se5", 0.75);
         return prev;
       }
@@ -1132,8 +1145,27 @@ const handleBattle = () => {
   const lookupItem = (keyOrName) => ITEMS.find((i) => i.key === keyOrName || i.name === keyOrName);
   const ownedStats = selectedId ? lookupStats(canvasItems.find((c) => c.id === selectedId)?.name) : lookupStats(ownedHover);
   const ownedMeta = selectedId ? lookupItem(canvasItems.find((c) => c.id === selectedId)?.name) : lookupItem(ownedHover);
+  const rarityValue = (itemMeta) => {
+    if (!itemMeta) return 1;
+    const r = itemMeta.rarity;
+    if (!r) return 1;
+    if (typeof r === "number" && Number.isFinite(r)) return Math.max(1, r);
+    const starCount = String(r).match(/☆/g)?.length;
+    if (starCount && starCount > 0) return starCount;
+    if (r === "??") return 2;
+    const num = parseInt(String(r).replace(/\D/g, ""), 10);
+    if (!Number.isNaN(num)) return Math.max(1, num);
+    return 1;
+  };
+  const computeRaritySum = (list) => {
+    return list.reduce((acc, c) => {
+      const meta = lookupItem(c.name) || c;
+      return acc + rarityValue(meta);
+    }, 0);
+  };
+  const canvasRaritySum = useMemo(() => computeRaritySum(canvasItems), [canvasItems]);
 
-  const canvasCountLabel = `${String(Math.min(canvasItems.length, MAX_CANVAS_ITEMS)).padStart(2, "0")}/${MAX_CANVAS_ITEMS}`;
+  const canvasCountLabel = `☆${String(Math.min(canvasRaritySum, MAX_CANVAS_RARITY)).padStart(2, "0")}/☆${MAX_CANVAS_RARITY}`;
   const canvasTotals = useMemo(() => {
     return canvasItems.reduce((acc, c) => {
       const st = lookupStats(c.name);
@@ -1209,7 +1241,12 @@ const handleBattle = () => {
             )}
             {mode === "battle" && (enemyPlaced || enemyDying) && (
               <div className={`enemy-hp hud hud-top-out ${enemyHitPulse ? "hit" : ""}`}>
-                <div className="floor-label">FLOOR {floor}</div>
+                {skillNote ? (
+                  <div className="skill-note">
+                    {skillNote.lines.map((line, idx) => <div key={`sn-${idx}`}>{line}</div>)}
+                  </div>
+                ) : null}
+                <div className="floor-label">人類 {floor}人目</div>
                 <div className="enemy-hp-main">
                   <div className="enemy-hp-bar">
                     <div className="enemy-hp-back" style={{ width: `${Math.max(0, enemyHpLag) / (enemyMaxHP || 1) * 100}%` }}></div>
@@ -1220,7 +1257,7 @@ const handleBattle = () => {
                 <div className="action-progress"><div className="action-fill enemy" style={{ width: `${Math.min(100, enemyProgress)}%` }}></div></div>
               </div>
             )}
-            <div className="battle-clip left-offset" style={clipStyle}>
+            <div className={`battle-clip left-offset ${allyHitPulse ? "ally-hit-img" : ""}`} style={clipStyle}>
               <div className="battle-guide" style={guideStyle}></div>
               {canvasItems.map((c) => (
                 <div
@@ -1236,6 +1273,7 @@ const handleBattle = () => {
                   <img src={c.img} alt={c.name} draggable={false} />
                 </div>
               ))}
+              {allyHitPulse ? <div className="ally-dmg ally-dmg-float">-{allyLastDmg}</div> : null}
             </div>
             {mode === "battle" && (enemyPlaced || enemyDying) && (
               <div className="battle-hand">
@@ -1454,6 +1492,7 @@ const handleBattle = () => {
         if (hp <= 0) return hp;
         const dmg = calcDamageTaken(enemyAtk, canvasTotals.silver);
         const next = Math.max(0, hp - dmg);
+        setAllyLastDmg(dmg);
         setAllyHitPulse((v) => v + 1);
         if (next <= 0) {
           triggerGameOver();
@@ -1528,7 +1567,30 @@ const handleBattle = () => {
 
             <div className="monitor-screen">
               <div className="monitor-bezel">
-                <div className={`screen-inner ${mode === "canvas" ? "canvas-mode" : ""} ${mode === "battle" ? "battle-mode" : ""}`} onDragOver={mode === "canvas" ? handleCanvasDragOver : undefined} onDrop={mode === "canvas" ? handleCanvasDrop : undefined}>
+                <div className={`screen-inner ${mode === "canvas" ? "canvas-mode" : ""} ${mode === "battle" ? "battle-mode" : ""} ${allyHitPulse && mode === "battle" ? "ally-hit-screen" : ""}`} onDragOver={mode === "canvas" ? handleCanvasDragOver : undefined} onDrop={mode === "canvas" ? handleCanvasDrop : undefined}>
+                  {gameOver.visible && (
+                    <div className="gameover-overlay" onClick={() => {
+                      setGameOver({ visible: false, floor: 1 });
+                      setFloor(1);
+                      setMode("battle");
+                      setEnemyPlaced(false);
+                      setEnemyDying(false);
+                      setEnemyHP(100);
+                      setEnemyMaxHP(100);
+                      setAllyHP(0);
+                      setAllyMaxHP(0);
+                      setHumanGauge(0);
+                      setHumanPoints(0);
+                      setHandCards([]);
+                    }}>
+                      <div className="gameover-panel">
+                        <div className="gameover-title">GAME OVER</div>
+                        <div className="gameover-floor">到達人類: {gameOver.floor}人目</div>
+                        <div className="gameover-hint">画面をクリックで戻る</div>
+                      </div>
+                    </div>
+                  )}
+                  {mode === "battle" && allyHitPulse ? <div key={`ally-flash-${allyHitPulse}`} className="ally-flash"></div> : null}
                   {mode === "normal" && <div className="screen-noise"></div>}
                   {mode === "canvas" && (
                   <div className="canvas-count-badge">{canvasCountLabel}</div>
@@ -1619,30 +1681,6 @@ const handleBattle = () => {
           これはクライアントだけで動く簡易ガチャです。全て引くと終了します。画像は入手済みカードからダウンロードできます。
         </p>
       </div>
-
-      
-      {gameOver.visible && (
-        <div className="gameover-overlay" onClick={() => {
-          setGameOver({ visible: false, floor: 1 });
-          setFloor(1);
-          setMode("battle");
-          setEnemyPlaced(false);
-          setEnemyDying(false);
-          setEnemyHP(100);
-          setEnemyMaxHP(100);
-          setAllyHP(0);
-          setAllyMaxHP(0);
-          setHumanGauge(0);
-          setHumanPoints(0);
-          setHandCards([]);
-        }}>
-          <div className="gameover-panel">
-            <div className="gameover-title">GAME OVER</div>
-            <div className="gameover-floor">到達FLOOR: {gameOver.floor}F</div>
-            <div className="gameover-hint">画面をクリックで戻る</div>
-          </div>
-        </div>
-      )}
 
       
       {confirmExit && (
