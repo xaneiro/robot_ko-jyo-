@@ -155,9 +155,9 @@ const rarityByKey = (() => {
   return map;
 })();
 
-const rollStat = (base, mult, rng) => {
-  const lo = Math.max(1, mult * 0.85);
-  const hi = mult * 1.15;
+const rollStat = (base, mult, rng, spread = 0.15) => {
+  const lo = Math.max(1, mult * (1 - spread));
+  const hi = mult * (1 + spread);
   const m = lo + (hi - lo) * rng();
   return Math.max(base, Math.round(base * m));
 };
@@ -165,12 +165,16 @@ const rollStat = (base, mult, rng) => {
 const rollStats = (key, rarity) => {
   const mult = RARITY_MULTIPLIER[rarity] ?? 1;
   const rng = rngFromString("stats-v1|" + key + "|" + rarity);
+  const is00 = key.startsWith(BASE_00_PREFIX);
+  const baseCyan = is00 ? BASE_00_STATS.cyan : 10;
+  const baseSilver = is00 ? BASE_00_STATS.silver : 10;
+  const wide = 0.45; // 行動力・防御力は振れ幅を大きく
   return {
     red: rollStat(BASE_00_STATS.red, mult, rng),
-    orange: rollStat(BASE_00_STATS.orange, mult, rng),
+    orange: 10, // 滅ぼし力は一律10
     green: rollStat(BASE_00_STATS.green, mult, rng),
-    cyan: rollStat(BASE_00_STATS.cyan, mult, rng),
-    silver: rollStat(BASE_00_STATS.silver, mult, rng),
+    cyan: rollStat(baseCyan, mult, rng, wide),
+    silver: rollStat(baseSilver, mult, rng, wide),
   };
 };
 
@@ -266,7 +270,7 @@ function App() {
   const [allyHitPulse, setAllyHitPulse] = useState(0);
   const [enemyLastDmg, setEnemyLastDmg] = useState(0);
   const [allyLastDmg, setAllyLastDmg] = useState(0);
-  const [skillNote, setSkillNote] = useState(null);
+  const [skillNotes, setSkillNotes] = useState([]);
   const enemyHPRef = useRef(enemyHP);
   const allyHPRef = useRef(allyHP);
   const battleTimerRef = useRef(null);
@@ -598,6 +602,7 @@ const spawnEnemy = (floorNum) => {
       setHumanGauge(0);
       setHumanPoints(0);
       setHandCards([]);
+      setSkillNotes([]);
       setAllyHP(0);
       setAllyMaxHP(0);
     }
@@ -722,13 +727,17 @@ const handleAssembleCore = () => {
     if (humanPoints < cost) { playSound("se5", 0.7); return; }
     setHumanPoints((p) => Math.max(0, p - cost));
     const dmg = calcDamageTaken(Math.max(0, Math.floor(canvasTotals.red * 2)), enemyDef);
-    setSkillNote({
+    const note = {
       id: Date.now(),
       lines: [
         `${card.name} の`,
         `${card.skill?.name || "不明スキル"}！`,
         `敵に ${dmg} ダメージ`,
       ],
+    };
+    setSkillNotes((prev) => {
+      const next = [note, ...prev];
+      return next.slice(0, 2);
     });
     playSound("se4", 0.7);
     setHandCards((prev) => {
@@ -1240,14 +1249,19 @@ const handleBattle = () => {
               </div>
             )}
             {mode === "battle" && (enemyPlaced || enemyDying) && (
-              <div className={`enemy-hp hud hud-top-out ${enemyHitPulse ? "hit" : ""}`}>
-                {skillNote ? (
-                  <div className="skill-note">
-                    {skillNote.lines.map((line, idx) => <div key={`sn-${idx}`}>{line}</div>)}
+              <div className={`enemy-hp hud hud-top-out`}>
+                <div className="skill-note-frame"></div>
+                {skillNotes.map((note, idx) => (
+                  <div
+                    key={note.id}
+                    className={`skill-note ${idx === 1 ? "older" : ""} slide-in`}
+                    style={{ top: `${-80 - idx * 74}px`, transform: `translateX(${idx === 0 ? "0" : "-6px"})` }}
+                  >
+                    {note.lines.map((line, i2) => <div key={`sn-${note.id}-${i2}`}>{line}</div>)}
                   </div>
-                ) : null}
+                ))}
                 <div className="floor-label">人類 {floor}人目</div>
-                <div className="enemy-hp-main">
+                <div className={`enemy-hp-main ${enemyHitPulse ? "hit" : ""}`}>
                   <div className="enemy-hp-bar">
                     <div className="enemy-hp-back" style={{ width: `${Math.max(0, enemyHpLag) / (enemyMaxHP || 1) * 100}%` }}></div>
                     <div className="enemy-hp-fill" style={{ width: `${Math.max(0, enemyHP) / (enemyMaxHP || 1) * 100}%` }}></div>
@@ -1582,6 +1596,7 @@ const handleBattle = () => {
                       setHumanGauge(0);
                       setHumanPoints(0);
                       setHandCards([]);
+                      setSkillNotes([]);
                     }}>
                       <div className="gameover-panel">
                         <div className="gameover-title">GAME OVER</div>
