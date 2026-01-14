@@ -109,7 +109,7 @@ h1 { font-size: 20px; margin: 0 0 16px; font-weight: 800; letter-spacing:.04em; 
 .draw-empty { width:100%; min-height: 320px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
 .cta-large { padding: 18px 24px; min-width: 260px; border-radius: 14px; border: 2px solid rgba(255,140,0,.65); background: radial-gradient(circle at 50% 20%, rgba(255,200,120,.35), rgba(255,140,0,.85)); color:#2b1a0f; font-weight:900; letter-spacing:.08em; font-size: 18px; box-shadow: 0 14px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,.65); cursor:pointer; transition: transform .12s ease, box-shadow .12s ease; }
 .cta-large:hover { transform: translateY(-2px); box-shadow: 0 16px 34px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,.8); }
-.cta-large:disabled { opacity:.55; cursor:not-allowed; transform:none; box-shadow: 0 10px 24px rgba(0,0,0,0.25); }
+.cta-large:disabled { opacity:1; cursor:not-allowed; transform:none; box-shadow: 0 10px 24px rgba(0,0,0,0.25); }
 .cta-large-title { font-size: 22px; font-weight: 900; }
 .cta-large-sub { font-size: 14px; margin-top: 6px; }
 .cta-again { padding: 14px 18px; border-radius: 12px; border: 2px solid rgba(77,225,255,.65); background: linear-gradient(180deg, rgba(77,225,255,.3), rgba(12,40,60,.9)); color:#eaf6ff; font-weight:900; letter-spacing:.08em; font-size: 18px; box-shadow: 0 10px 22px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,.35); cursor:pointer; transition: transform .12s ease, box-shadow .12s ease; width:100%; }

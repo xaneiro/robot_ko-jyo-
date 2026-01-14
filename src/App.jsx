@@ -721,6 +721,15 @@ const handleAssembleCore = () => {
     return next;
   };
 
+  const countHandSkills = (arr) => {
+    return arr.reduce((acc, card) => {
+      const skillName = card?.skill?.name;
+      if (!skillName) return acc;
+      acc[skillName] = (acc[skillName] || 0) + 1;
+      return acc;
+    }, {});
+  };
+
   const handleSkillPlay = (card, index) => {
     if (mode !== "battle" || !card) return;
     const cost = card?.skill?.cost ?? 1;
@@ -781,18 +790,40 @@ const handleBattle = () => {
     if (slotIdx === -1) { playSound("se5", 0.7); return; }
     const withSkill = canvasItems
       .map((c) => lookupItem(c.name))
-      .filter((m) => m && m.skill);
-    const pick = withSkill.length
-      ? withSkill[Math.floor(Math.random() * withSkill.length)]
-      : { name: "情報なし", skill: { name: "情報なし", desc: "スキル未設定", cost: 1 } };
-    setHumanPoints((p) => Math.max(0, p - 1));
+      .filter((m) => m?.skill?.name);
+    if (!withSkill.length) { playSound("se5", 0.7); return; }
+
+    const canvasSkillCounts = withSkill.reduce((acc, meta) => {
+      const skillName = meta.skill.name;
+      acc[skillName] = (acc[skillName] || 0) + 1;
+      return acc;
+    }, {});
+
+    let added = false;
     setHandCards((prev) => {
       const next = padHand(prev);
       const emptyIdx = next.findIndex((c) => !c);
       if (emptyIdx === -1) return next;
-      next[emptyIdx] = { name: pick.name, skill: pick.skill || { name: "情報なし", desc: "スキル未設定", cost: 1 } };
+
+      const handSkillCounts = countHandSkills(next);
+      const eligible = withSkill.filter((meta) => {
+        const skillName = meta.skill.name;
+        const allowed = canvasSkillCounts[skillName] || 0;
+        const inHand = handSkillCounts[skillName] || 0;
+        return allowed > inHand;
+      });
+      if (!eligible.length) return next;
+
+      const pick = eligible[Math.floor(Math.random() * eligible.length)];
+      next[emptyIdx] = { name: pick.name, skill: pick.skill };
+      added = true;
       return next;
     });
+    if (added) {
+      setHumanPoints((p) => Math.max(0, p - 1));
+    } else {
+      playSound("se5", 0.7);
+    }
   };
 
   const ownedItems = useMemo(() => ITEMS.filter((i) => countsMap[i.key]), [countsMap]);
@@ -1576,7 +1607,7 @@ const handleBattle = () => {
             <div className="monitor-bar">
               <button className={`monitor-btn ${mode === "normal" ? "active" : "inactive"}`} id="drawBtn" onMouseEnter={() => playSound("se3", 0.65)} onClick={handleDraw}>作る</button>
               <button className={`monitor-btn ${mode === "canvas" ? "active" : "inactive"}`} id="assembleBtn" onClick={handleAssemble}>組み立てる</button>
-              <button className={`monitor-btn ${mode === "battle" ? "active" : "inactive"}`} id="battleBtn" onClick={handleBattle}>戦闘</button>
+              <button className={`monitor-btn ${mode === "battle" ? "active" : "inactive"}`} id="battleBtn" onClick={handleBattle}>滅ぼす</button>
             </div>
 
             <div className="monitor-screen">
