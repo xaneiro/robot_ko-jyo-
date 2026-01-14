@@ -496,16 +496,6 @@ const spawnEnemy = (floorNum) => {
   }, [bgmOn]);
 
   useEffect(() => {
-    localStorage.removeItem(LS_DRAWN);
-    localStorage.removeItem(LS_COUNT);
-    localStorage.removeItem(LS_COUNTS);
-    setDrawnMap({});
-    setCountsMap({});
-    setDrawCount(0);
-    setMaterials(INITIAL_MATERIAL);
-  }, []);
-
-  useEffect(() => {
     const savedMat = localStorage.getItem("materials");
     if (savedMat) setMaterials(Number(savedMat));
     const saved = localStorage.getItem(LS_CANVAS);
@@ -525,7 +515,7 @@ const spawnEnemy = (floorNum) => {
   useEffect(() => {
     localStorage.setItem(LS_CANVAS, JSON.stringify(canvasItems));
     localStorage.setItem("materials", String(materials));
-  }, [canvasItems]);
+  }, [canvasItems, materials]);
 
 
 
@@ -688,6 +678,57 @@ const spawnEnemy = (floorNum) => {
     setCountsMap(allCounts);
     setDrawCount(ITEMS.length);
     setLastDrawnName(null);
+  };
+
+  const handleResetData = () => {
+    clearBattleTimers();
+    localStorage.removeItem(LS_DRAWN);
+    localStorage.removeItem(LS_COUNT);
+    localStorage.removeItem(LS_COUNTS);
+    localStorage.removeItem(LS_CANVAS);
+    localStorage.removeItem("materials");
+    setDrawnMap({});
+    setCountsMap({});
+    setDrawCount(0);
+    setCanvasItems([]);
+    setMaterials(INITIAL_MATERIAL);
+    setResult({ type: "message" });
+    setMode("normal");
+    setActiveTab("catalog");
+    setPreviewPos(null);
+    setPreviewItem(null);
+    setSelectedId(null);
+    setIsDragging(false);
+    setShowAnother(false);
+    setLastDrawnName(null);
+    setHandCards(Array(5).fill(null));
+    setSkillNotes([]);
+    setHumanGauge(0);
+    setHumanPoints(0);
+    humanGaugeRef.current = 0;
+    prevHumanPointsRef.current = 0;
+    setInBattlePhase(false);
+    setEnemyPlaced(false);
+    setEnemyDying(false);
+    setEnemyHP(100);
+    setEnemyMaxHP(100);
+    setEnemyHpLag(100);
+    enemyHPRef.current = 100;
+    setAllyHP(0);
+    setAllyMaxHP(0);
+    setAllyHpLag(0);
+    allyHPRef.current = 0;
+    setEnemyAtk(10);
+    setEnemyAct(10);
+    setEnemyDef(20);
+    setEnemyProgress(0);
+    setAllyProgress(0);
+    setEnemyRoster([]);
+    setCurrentEnemy(null);
+    setFloor(1);
+    setGameOver({ visible: false, floor: 1 });
+    setConfirmExit(false);
+    setPendingNav(null);
   };
 
     const handleNavWithConfirm = (target) => {
@@ -1666,6 +1707,7 @@ const handleBattle = () => {
                     />
                   </div>
                   <span className="material-info">素材: {materials}</span>
+                  <button className="toggle" onClick={handleResetData}>データ消去</button>
                   <button className="toggle" onClick={handleUnlockAll}>全キャラ入手</button>
                 </div>
               </div>
