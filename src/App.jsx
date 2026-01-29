@@ -94,6 +94,7 @@ const FILES = [
 
 const BASE_00_PREFIX = "00";
 const BASE_00_STATS = { red: 10, orange: 10, green: 100, cyan: 20, silver: 20 };
+const BASE_00_PASSIVE = { name: "パッシブ滅ぼし", desc: "敵をクリックすると1ダメージ（00編成時のみ）" };
 
 const RARITY_BUCKETS = [
   { rarity: "☆☆☆☆☆", count: 10 },
@@ -133,6 +134,26 @@ const shuffleInPlace = (arr, rng) => {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
+};
+
+const useIsMobile = (breakpoint = 768) => {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth <= breakpoint;
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia(`(max-width:${breakpoint}px)`);
+    const handler = (e) => setIsMobile(e.matches);
+    if (mql?.addEventListener) mql.addEventListener("change", handler);
+    else if (mql?.addListener) mql.addListener(handler);
+    setIsMobile(mql.matches);
+    return () => {
+      if (mql?.removeEventListener) mql.removeEventListener("change", handler);
+      else if (mql?.removeListener) mql.removeListener(handler);
+    };
+  }, [breakpoint]);
+  return isMobile;
 };
 
 const rarityByKey = (() => {
@@ -196,10 +217,12 @@ const ITEMS = FILES.map((file, idx) => {
   const rarity = is00 ? "??" : (rarityByKey[key] || "☆");
   const stats = is00 ? { ...BASE_00_STATS } : rollStats(key, rarity);
   let skill;
+  let passive;
   if (is00) {
     skill = { name: "人類滅ぼしパンチ", desc: "攻撃力依存、200%のダメージ", cost: 1 };
+    passive = BASE_00_PASSIVE;
   }
-  return { key, name, img: "/images/" + file, order, idx, stats, rarity, skill };
+  return { key, name, img: "/images/" + file, order, idx, stats, rarity, skill, passive };
 }).sort((a, b) => (a.order === b.order ? a.idx - b.idx : a.order - b.order));
 
 
@@ -221,6 +244,7 @@ const Badge = ({ got }) => (
 );
 
 function App() {
+  const isMobile = useIsMobile();
   const [drawnMap, setDrawnMap] = useState({});
   const [countsMap, setCountsMap] = useState({});
   const [drawCount, setDrawCount] = useState(0);
@@ -807,6 +831,23 @@ const handleAssembleCore = () => {
     });
   };
 
+  const handleEnemyClick = () => {
+    if (!hasClickPassive) return;
+    if (mode !== "battle" || !enemyPlaced || enemyDying) return;
+    if (enemyHPRef.current <= 0) return;
+    const dmg = 1;
+    setEnemyHP((hp) => {
+      if (hp <= 0) return hp;
+      const next = Math.max(0, hp - dmg);
+      setEnemyLastDmg(dmg);
+      setEnemyHitPulse((v) => v + 1);
+      if (next <= 0) {
+        handleEnemyDefeat();
+      }
+      return next;
+    });
+  };
+
   
   const handleDraw = () => handleNavWithConfirm("draw");
   const handleAssemble = () => handleNavWithConfirm("assemble");
@@ -959,7 +1000,7 @@ const handleBattle = () => {
   };
 
   const handleDragStart = (item, e) => {
-    if (mode !== "canvas") return;
+    if (mode !== "canvas" || isMobile) return;
     dragItemRef.current = item;
     setPreviewItem(item);
     if (e && e.dataTransfer) {
@@ -1034,6 +1075,10 @@ const handleBattle = () => {
     const hits = getHitStack(e.clientX, e.clientY);
     const targetId = hits.length ? cycleSelectFromHits(hits) : item.id;
     const targetItem = canvasItems.find((c) => c.id === targetId) || item;
+    if (isMobile) {
+      setSelectedId(targetItem.id);
+      return;
+    }
     const rect = board.getBoundingClientRect();
     const pointerX = ((e.clientX - rect.left) / rect.width) * 100;
     const pointerY = ((e.clientY - rect.top) / rect.height) * 100;
@@ -1113,6 +1158,19 @@ const handleBattle = () => {
     if (e.target === e.currentTarget) {
       setSelectedId(null);
     }
+  };
+
+  const handleDeleteSelected = () => {
+    if (!selectedId) return;
+    setCanvasItems((prev) => prev.filter((c) => c.id !== selectedId));
+    setSelectedId(null);
+  };
+
+  const handleClearCanvas = () => {
+    setCanvasItems([]);
+    setSelectedId(null);
+    setPreviewPos(null);
+    setPreviewItem(null);
   };
 
   const historyList = ITEMS.map((item) => {
@@ -1261,6 +1319,7 @@ const handleBattle = () => {
     }, { red: 0, orange: 0, green: 0, cyan: 0, silver: 0 });
   }, [canvasItems]);
 
+  const hasClickPassive = useMemo(() => canvasItems.some((c) => (c.name || "").startsWith(BASE_00_PREFIX)), [canvasItems]);
 
 
     const squareGuide = (r) => {
@@ -1412,7 +1471,11 @@ const handleBattle = () => {
           >戦闘開始！</button>
         )}
         {mode === "battle" && (enemyPlaced || enemyDying) && (
-          <div className={`battle-enemy ${enemyDying ? "dying" : ""} ${enemyHitPulse ? "hit" : ""}`}>
+          <div
+            className={`battle-enemy ${enemyDying ? "dying" : ""} ${enemyHitPulse ? "hit" : ""} ${enemyPlaced && hasClickPassive && !enemyDying ? "clickable" : ""}`}
+            onClick={handleEnemyClick}
+            title={enemyPlaced && hasClickPassive ? "クリックで1ダメージ" : undefined}
+          >
             <img src={currentEnemy?.img || "/enemy/人類.png"} alt={currentEnemy?.key || "敵"} />
             {enemyHitPulse ? (
               <div key={enemyHitPulse} className="enemy-dmg enemy-dmg-float">-{enemyLastDmg}</div>
@@ -1434,6 +1497,15 @@ const handleBattle = () => {
           onMouseUp={handleCanvasMouseUp}
           onClick={handleCanvasBackgroundClick}
         >
+          {isMobile && (
+            <div className="canvas-mobile-controls">
+              <div className="mobile-hint">スマホ: タップで貼り付け／選択、下のボタンで削除や全消去</div>
+              <div className="mobile-btn-row">
+                <button className="toggle" onClick={handleDeleteSelected} disabled={!selectedId}>選択を削除</button>
+                <button className="toggle ghost" onClick={handleClearCanvas} disabled={!canvasItems.length}>キャンバス全消去</button>
+              </div>
+            </div>
+          )}
           {canvasItems.map((c) => (
             <div
               key={c.id}
@@ -1487,6 +1559,7 @@ const handleBattle = () => {
                 <div className="meta stats-line">ステータス: 情報なし</div>
               )}
               <div className="meta skill-line">{drawnMeta.skill ? `滅ぼしスキル: ${drawnMeta.skill.name}（${drawnMeta.skill.desc}）` : "滅ぼしスキル: 情報なし"}</div>
+              <div className="meta passive-line">{drawnMeta.passive ? `パッシブ: ${drawnMeta.passive.name}（${drawnMeta.passive.desc}）` : "パッシブ: 情報なし"}</div>
               <div className="meta">
                 <span>回数… {result.count} 回</span>
               <span>時刻… {new Date(result.at).toLocaleString()}</span>
@@ -1605,6 +1678,7 @@ const handleBattle = () => {
   }, [mode, enemyPlaced, canvasTotals.red, canvasTotals.orange, canvasTotals.cyan, canvasTotals.silver, enemyAct, enemyAtk, enemyDef]);
 
   const handleDexWheel = (e) => {
+    if (isMobile) return;
     if (activeTab === "catalog") {
       const body = catalogRef.current;
       const speed = Math.min(1, Math.abs(e.deltaY) / 400);
@@ -1636,8 +1710,12 @@ const handleBattle = () => {
       <audio ref={audioRefs.se6} src="/se/se6.mp3" preload="auto" />
       <audio ref={audioRefs.se7} src="/se/se7.mp3" preload="auto" />
 
-      <div className="wrap">
+      <div className={`wrap ${isMobile ? "mobile" : "desktop"}`}>
         <h1>ロボットコージョー ガチャ</h1>
+        <div className="device-chip">
+          <span className="dot"></span>
+          <span>{isMobile ? "スマホモード: タップで貼り付け・削除ボタン付き" : "PCモード: ドラッグ＆ドロップ＋Deleteキー"}</span>
+        </div>
 
         <div className="machine-shell">
           <div className="side-panel left"><div className="side-window"></div></div>
@@ -1747,6 +1825,7 @@ const handleBattle = () => {
                         ) : null}
                         <div className="stat-meta">
                           {ownedMeta?.skill ? <span className="skill">滅ぼしスキル: {ownedMeta.skill.name}（{ownedMeta.skill.desc}）</span> : <span className="skill">滅ぼしスキル: 情報なし</span>}
+                          {ownedMeta?.passive ? <span className="passive">パッシブ: {ownedMeta.passive.name}（{ownedMeta.passive.desc}）</span> : <span className="passive">パッシブ: 情報なし</span>}
                         </div>
                       </>
                     ) : ""}
