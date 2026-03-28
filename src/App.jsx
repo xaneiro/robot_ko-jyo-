@@ -1263,7 +1263,7 @@ const handleBattle = () => {
     const jitterX = ((idx * 17) % 10) - 5;
     const jitterY = ((idx * 13) % 12) - 6;
     const baseLeft = 30 + idx * 64 + jitterX;
-    const top = 120 + jitterY;
+    const top = 54 + jitterY;
     const diff = hoveredIdx >= 0 ? idx - hoveredIdx : 0;
     const offset = hoveredIdx >= 0 ? diff * 40 : 0;
     const lift = diff === 0 && hoveredIdx >= 0 ? 40 : 0;
@@ -1997,7 +1997,6 @@ const handleBattle = () => {
   );
 }
 export default App;
-
 
 
 

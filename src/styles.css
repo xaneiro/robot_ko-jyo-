@@ -1533,8 +1533,8 @@ h1::before {
 .stat-led.silver { color: #8b8b8b; }
 
 .owned-stack {
-  min-height: 340px;
-  padding: 0 6px 12px;
+  min-height: 306px;
+  padding: 0 6px 10px;
 }
 
 .owned-stack .owned-title {
@@ -1543,8 +1543,8 @@ h1::before {
 }
 
 .owned-stack .stack-area {
-  height: 240px;
-  padding: 60px 22px 28px;
+  height: 212px;
+  padding: 34px 22px 24px;
 }
 
 .owned-stack .stack-card {
@@ -1838,7 +1838,7 @@ input:focus-visible {
   }
 
   .wrap {
-    padding: 24px 16px 56px;
+    padding: 18px 14px 40px;
   }
 
   .wrap::before,
@@ -1851,8 +1851,8 @@ input:focus-visible {
 
   .title-rig {
     gap: 10px;
-    margin-bottom: 18px;
-    padding: 0 0 14px;
+    margin-bottom: 14px;
+    padding: 0 0 10px;
   }
 
   .title-rig::after {
@@ -1866,13 +1866,13 @@ input:focus-visible {
   }
 
   .machine-shell {
-    padding: 18px 12px 28px;
-    border-radius: 24px;
+    padding: 14px 10px 20px;
+    border-radius: 22px;
   }
 
   .panel {
-    padding: 14px;
-    border-radius: 20px;
+    padding: 12px;
+    border-radius: 18px;
   }
 
   .panel::after,
@@ -1882,7 +1882,7 @@ input:focus-visible {
 
   .monitor-bar {
     gap: 8px;
-    padding: 10px;
+    padding: 8px;
   }
 
   .monitor-btn,
@@ -1892,16 +1892,16 @@ input:focus-visible {
   }
 
   .monitor-screen {
-    padding: 10px;
+    padding: 8px;
   }
 
   .monitor-bezel {
-    padding: 10px 10px 64px;
+    padding: 8px 8px 54px;
     border-radius: 16px;
   }
 
   .screen-inner {
-    min-height: 360px;
+    min-height: 320px;
   }
 
   .console {
@@ -1929,8 +1929,8 @@ input:focus-visible {
   }
 
   .dex-body {
-    max-height: 430px;
-    padding: 12px;
+    max-height: 340px;
+    padding: 10px;
   }
 
   .card {
@@ -1943,11 +1943,17 @@ input:focus-visible {
   }
 
   .thumb img {
-    height: 260px;
+    height: 220px;
   }
 
   .owned-stack .stack-area {
-    padding: 56px 18px 26px;
+    height: 176px;
+    padding: 30px 16px 18px;
+  }
+
+  .owned-stack .stack-card {
+    width: 136px;
+    height: 168px;
   }
 
   .battle-hand .hand-list {
@@ -2202,7 +2208,7 @@ input:focus-visible {
   }
 
   .wrap {
-    padding: 16px 12px 32px;
+    padding: 10px 10px 18px;
   }
 
   .wrap::before,
@@ -2215,8 +2221,8 @@ input:focus-visible {
 
   .title-rig {
     gap: 8px 12px;
-    margin-bottom: 12px;
-    padding: 0 8px 10px;
+    margin-bottom: 8px;
+    padding: 0 6px 8px;
     align-items: center;
   }
 
@@ -2239,13 +2245,13 @@ input:focus-visible {
 
   .device-chip {
     max-width: 100%;
-    padding: 6px 10px;
-    font-size: 11px;
+    padding: 5px 9px;
+    font-size: 10px;
   }
 
   .machine-shell {
-    padding: 14px 10px 18px;
-    border-radius: 24px;
+    padding: 10px 8px 12px;
+    border-radius: 20px;
   }
 
   .machine-shell::before,
@@ -2255,8 +2261,8 @@ input:focus-visible {
   }
 
   .panel {
-    padding: 12px;
-    border-radius: 20px;
+    padding: 10px;
+    border-radius: 18px;
   }
 
   .panel::after,
@@ -2265,14 +2271,14 @@ input:focus-visible {
   }
 
   .monitor-bar {
-    gap: 8px;
-    padding: 8px;
+    gap: 6px;
+    padding: 6px;
     border-radius: 18px;
   }
 
   .monitor-btn {
-    padding: 8px 12px;
-    font-size: 12px;
+    padding: 6px 10px;
+    font-size: 11px;
     letter-spacing: 0.08em;
   }
 
@@ -2285,13 +2291,13 @@ input:focus-visible {
   }
 
   .monitor-screen {
-    margin-top: 10px;
-    padding: 8px;
+    margin-top: 8px;
+    padding: 6px;
     border-radius: 18px;
   }
 
   .monitor-bezel {
-    padding: 8px 8px 58px;
+    padding: 6px 6px 46px;
     border-radius: 16px;
   }
 
@@ -2303,7 +2309,7 @@ input:focus-visible {
   }
 
   .screen-inner {
-    min-height: 286px;
+    min-height: 226px;
   }
 
   .result,
@@ -2313,12 +2319,12 @@ input:focus-visible {
   .canvas-blank,
   .result.canvas-mode .canvas-blank,
   .canvas-board {
-    min-height: 250px;
+    min-height: 186px;
   }
 
   .battle-scene,
   .canvas-board {
-    height: 250px;
+    height: 186px;
   }
 
   .result-grid {
@@ -2378,10 +2384,10 @@ input:focus-visible {
   .console {
     left: 8px;
     right: 8px;
-    bottom: 8px;
-    min-height: 46px;
-    gap: 7px;
-    padding: 8px 9px;
+    bottom: 6px;
+    min-height: 38px;
+    gap: 6px;
+    padding: 6px 7px;
     border-radius: 14px;
   }
 
@@ -2400,8 +2406,8 @@ input:focus-visible {
   }
 
   .toggle {
-    padding: 6px 9px;
-    font-size: 11px;
+    padding: 5px 8px;
+    font-size: 10px;
   }
 
   .console .volume {
@@ -2427,7 +2433,7 @@ input:focus-visible {
   }
 
   .dex-monitor {
-    margin-top: 12px;
+    margin-top: 8px;
     border-radius: 22px;
   }
 
@@ -2438,7 +2444,7 @@ input:focus-visible {
 
   .dex-header {
     gap: 8px;
-    padding: 10px 12px 0;
+    padding: 8px 10px 0;
     align-items: center;
   }
 
@@ -2455,8 +2461,8 @@ input:focus-visible {
   }
 
   .tab-btn {
-    padding: 7px 10px;
-    font-size: 11px;
+    padding: 6px 9px;
+    font-size: 10px;
     white-space: nowrap;
     border-radius: 12px 12px 0 0;
   }
@@ -2470,8 +2476,8 @@ input:focus-visible {
   }
 
   .dex-body {
-    max-height: 220px;
-    padding: 10px;
+    max-height: 148px;
+    padding: 8px;
   }
 
   .list {
@@ -2485,7 +2491,7 @@ input:focus-visible {
   }
 
   .thumb img {
-    height: 180px;
+    height: 148px;
   }
 
   .thumb.small {
@@ -2512,7 +2518,7 @@ input:focus-visible {
   }
 
   .tab-panel#tab-owned {
-    padding-top: 48px;
+    padding-top: 42px;
   }
 
   .owned-selected-name {
@@ -2522,7 +2528,7 @@ input:focus-visible {
   }
 
   .owned-selected-stats {
-    top: 26px;
+    top: 24px;
     left: 10px;
     right: 10px;
     font-size: 11px;
@@ -2549,18 +2555,18 @@ input:focus-visible {
   }
 
   .owned-stack {
-    min-height: 220px;
-    padding: 0 6px 8px;
+    min-height: 176px;
+    padding: 0 4px 6px;
   }
 
   .owned-stack .stack-area {
-    height: 150px;
-    padding: 48px 12px 16px;
+    height: 118px;
+    padding: 24px 10px 12px;
   }
 
   .owned-stack .stack-card {
-    width: 108px;
-    height: 132px;
+    width: 96px;
+    height: 118px;
     border-radius: 14px;
   }
 
@@ -2598,14 +2604,14 @@ input:focus-visible {
     justify-content: center;
     padding: 0 20px;
     text-align: center;
-    font-size: 15px;
+    font-size: 13px;
   }
 
   .canvas-item img,
   .battle-item img,
   .canvas-guide img {
-    max-width: 168px;
-    max-height: 168px;
+    max-width: 144px;
+    max-height: 144px;
   }
 
   .canvas-item .resize-handle {
@@ -2623,7 +2629,7 @@ input:focus-visible {
   .battle-panel-left {
     top: 8px;
     left: 8px;
-    width: 176px;
+    width: 158px;
   }
 
   .battle-support-panel {
@@ -2634,7 +2640,7 @@ input:focus-visible {
   }
 
   .battle-panel-title {
-    font-size: 10px;
+    font-size: 9px;
   }
 
   .battle-metric-grid {
@@ -2653,7 +2659,7 @@ input:focus-visible {
 
   .battle-metric strong {
     margin-top: 3px;
-    font-size: 14px;
+    font-size: 12px;
   }
 
   .ally-extra {
@@ -2675,7 +2681,7 @@ input:focus-visible {
   .battle-note-list {
     gap: 4px;
     margin-top: 6px;
-    max-height: 44px;
+    max-height: 34px;
   }
 
   .battle-note-item {
@@ -2688,12 +2694,12 @@ input:focus-visible {
     top: 8px;
     right: 8px;
     left: auto;
-    padding: 8px 10px;
-    max-width: 190px;
+    padding: 6px 8px;
+    max-width: 166px;
   }
 
   .floor-label {
-    font-size: 14px;
+    font-size: 12px;
   }
 
   .enemy-hp-main {
@@ -2701,7 +2707,7 @@ input:focus-visible {
   }
 
   .enemy-hp-bar {
-    width: 116px;
+    width: 92px;
     height: 8px;
   }
 
@@ -2711,13 +2717,13 @@ input:focus-visible {
 
   .battle-enemy {
     right: 10px;
-    bottom: 62px;
-    width: 92px;
-    height: 92px;
+    bottom: 50px;
+    width: 76px;
+    height: 76px;
   }
 
   .enemy-dmg {
-    font-size: 20px;
+    font-size: 16px;
   }
 
   .battle-empty-state {
