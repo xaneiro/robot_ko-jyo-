@@ -136,23 +136,36 @@ const shuffleInPlace = (arr, rng) => {
   return arr;
 };
 
-const useIsMobile = (breakpoint = 768) => {
+const useIsMobile = (breakpoint = 768, landscapeHeight = 560, landscapeWidth = 960) => {
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
-    return window.innerWidth <= breakpoint;
+    const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+    const isShortLandscape =
+      coarsePointer &&
+      window.innerWidth <= landscapeWidth &&
+      window.innerHeight <= landscapeHeight &&
+      window.innerWidth > window.innerHeight;
+    return window.innerWidth <= breakpoint || isShortLandscape;
   });
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const mql = window.matchMedia(`(max-width:${breakpoint}px)`);
-    const handler = (e) => setIsMobile(e.matches);
-    if (mql?.addEventListener) mql.addEventListener("change", handler);
-    else if (mql?.addListener) mql.addListener(handler);
-    setIsMobile(mql.matches);
-    return () => {
-      if (mql?.removeEventListener) mql.removeEventListener("change", handler);
-      else if (mql?.removeListener) mql.removeListener(handler);
+    const update = () => {
+      const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+      const isShortLandscape =
+        coarsePointer &&
+        window.innerWidth <= landscapeWidth &&
+        window.innerHeight <= landscapeHeight &&
+        window.innerWidth > window.innerHeight;
+      setIsMobile(window.innerWidth <= breakpoint || isShortLandscape);
     };
-  }, [breakpoint]);
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+    };
+  }, [breakpoint, landscapeHeight, landscapeWidth]);
   return isMobile;
 };
 
@@ -336,15 +349,23 @@ function App() {
   };
 
 
-  const clearBattleTimers = () => {
+  const clearBattleLoop = () => {
     if (battleTimerRef.current) {
       clearInterval(battleTimerRef.current);
       battleTimerRef.current = null;
     }
+  };
+
+  const clearRespawnTimer = () => {
     if (enemyTimerRef?.current) {
-      clearInterval(enemyTimerRef.current);
+      clearTimeout(enemyTimerRef.current);
       enemyTimerRef.current = null;
     }
+  };
+
+  const clearBattleTimers = () => {
+    clearBattleLoop();
+    clearRespawnTimer();
   };
 
   
@@ -377,31 +398,40 @@ const loadEnemies = () => {
     const baseAtk = enemy.baseAtk;
     const baseAct = enemy.baseAct;
     const baseDef = enemy.baseDef ?? 100;
-    let mult = 1 + 0.5 * Math.max(0, floorNum - 1);
-    if (floorNum % 10 === 0) mult *= 3.0; // ボス強化
-    else if (floorNum % 5 === 0) mult *= 2.0; // 中ボス強化
     return {
-      hp: Math.max(1, Math.round(baseHP * mult)),
-      atk: Math.max(1, Math.round(baseAtk * mult)),
-      act: Math.max(1, Math.round(baseAct * mult)),
-      def: Math.max(1, Math.round(baseDef * mult)),
-      mult,
+      hp: Math.max(1, Math.round(baseHP)),
+      atk: Math.max(1, Math.round(baseAtk)),
+      act: Math.max(1, Math.round(baseAct)),
+      def: Math.max(1, Math.round(baseDef)),
+      mult: 1,
     };
   };
 
 
   function handleEnemyDefeat() {
     const multInfo = currentEnemy ? calcEnemyStats(currentEnemy, floor).mult : 1;
-    const drop = Math.max(1, Math.round(20 * multInfo));
+    const drop = Math.max(1, Math.round(16 * multInfo + (battleStats?.rewardBonus || 0)));
     setMaterials((m) => m + drop);
+    setSkillNotes((prev) => [
+      {
+        id: `${Date.now()}-${Math.random()}`,
+        lines: [
+          `人類 ${floor}人目 を撃破`,
+          `素材 +${drop}`,
+        ],
+      },
+      ...prev,
+    ].slice(0, 3));
+    playSound("se6", 0.55);
     const nextFloor = floor + 1;
     setFloor(nextFloor);
-    clearBattleTimers();
+    clearBattleLoop();
+    clearRespawnTimer();
     setEnemyPlaced(false);
     setEnemyDying(true);
-    setTimeout(() => {
+    enemyTimerRef.current = setTimeout(() => {
       spawnEnemy(nextFloor);
-    }, 800);
+    }, 550);
   }
 
 const spawnEnemy = (floorNum) => {
@@ -597,30 +627,9 @@ const spawnEnemy = (floorNum) => {
   }, [mode, canvasItems.length]);
 
   useEffect(() => {
-    if (mode !== "battle") {
-      clearBattleTimers();
-      setInBattlePhase(false);
-      setAllyProgress(0);
-      setEnemyProgress(0);
-      setEnemyPlaced(false);
-      setEnemyDying(false);
-      setEnemyHP(100);
-      setGameOver({ visible: false, floor: 1 });
-      setFloor(1);
-      setPendingNav(null);
-      setConfirmExit(false);
-      setEnemyMaxHP(100);
-      setEnemyAtk(10);
-      setEnemyAct(10);
-      setEnemyDef(20);
-      setHumanGauge(0);
-      setHumanPoints(0);
-      setHandCards([]);
-      setSkillNotes([]);
-      setAllyHP(0);
-      setAllyMaxHP(0);
-    }
-  }, [mode]);
+    if (enemyPlaced || enemyDying || currentEnemy) return;
+    spawnEnemy(floor);
+  }, [enemyPlaced, enemyDying, currentEnemy, floor]);
 
     const scrollToHistory = (name) => {
     const body = catalogRef.current || dexBodyRef.current;
@@ -635,7 +644,6 @@ const spawnEnemy = (floorNum) => {
   const handleDrawCore = () => {
     setMode("normal");
     setActiveTab("catalog");
-    setEnemyPlaced(false);
     setPreviewPos(null);
     setPreviewItem(null);
     setSelectedId(null);
@@ -756,11 +764,6 @@ const spawnEnemy = (floorNum) => {
   };
 
     const handleNavWithConfirm = (target) => {
-    if (mode === "battle" && inBattlePhase) {
-      setConfirmExit(true);
-      setPendingNav(target);
-      return;
-    }
     if (target === "draw") handleDrawCore();
     else if (target === "assemble") handleAssembleCore();
   };
@@ -769,7 +772,6 @@ const handleAssembleCore = () => {
     playSound("se6", 0.6);
     setMode("canvas");
     setActiveTab("owned");
-    setEnemyPlaced(false);
     setPreviewPos(null);
     setPreviewItem(null);
     setSelectedId(null);
@@ -778,6 +780,14 @@ const handleAssembleCore = () => {
     resizingRef.current = false;
     resizeStartRef.current = null;
     setResult({ type: "canvas" });
+  };
+
+  const appendBattleNote = (lines) => {
+    const note = {
+      id: `${Date.now()}-${Math.random()}`,
+      lines: Array.isArray(lines) ? lines : [lines],
+    };
+    setSkillNotes((prev) => [note, ...prev].slice(0, 3));
   };
 
   const padHand = (arr) => {
@@ -832,20 +842,37 @@ const handleAssembleCore = () => {
   };
 
   const handleEnemyClick = () => {
-    if (!hasClickPassive) return;
     if (mode !== "battle" || !enemyPlaced || enemyDying) return;
     if (enemyHPRef.current <= 0) return;
-    const dmg = 1;
+    const isCrit = Math.random() < battleStats.critChance;
+    const rawDamage = Math.max(
+      1,
+      Math.round(
+        battleStats.clickDamage * (isCrit ? battleStats.critMultiplier : 1)
+      )
+    );
+    const effectiveDef = Math.max(1, enemyDef - battleStats.defenseBreak);
+    const dmg = Math.max(1, calcDamageTaken(rawDamage, effectiveDef));
+    let applied = false;
+    let defeated = false;
     setEnemyHP((hp) => {
       if (hp <= 0) return hp;
+      applied = true;
       const next = Math.max(0, hp - dmg);
-      setEnemyLastDmg(dmg);
-      setEnemyHitPulse((v) => v + 1);
-      if (next <= 0) {
-        handleEnemyDefeat();
-      }
+      defeated = next <= 0;
       return next;
     });
+    if (!applied) return;
+    setEnemyLastDmg(dmg);
+    setEnemyHitPulse((v) => v + 1);
+    if (isCrit) {
+      appendBattleNote([
+        "クリティカル！",
+        `クリックで ${dmg} ダメージ`,
+      ]);
+      playSound("se4", 0.35);
+    }
+    if (defeated) handleEnemyDefeat();
   };
 
   
@@ -855,7 +882,6 @@ const handleAssembleCore = () => {
 const handleBattle = () => {
     playSound("se6", 0.7);
     setMode("battle");
-    setEnemyPlaced(false);
     setPreviewPos(null);
     setPreviewItem(null);
     setSelectedId(null);
@@ -863,6 +889,9 @@ const handleBattle = () => {
     resizingRef.current = false;
     resizeStartRef.current = null;
     setResult({ type: "battle" });
+    if (!enemyPlaced && !enemyDying && !currentEnemy) {
+      spawnEnemy(floor);
+    }
   };
 
   const handleHoloDraw = () => {
@@ -1320,6 +1349,64 @@ const handleBattle = () => {
   }, [canvasItems]);
 
   const hasClickPassive = useMemo(() => canvasItems.some((c) => (c.name || "").startsWith(BASE_00_PREFIX)), [canvasItems]);
+  const battleStats = useMemo(() => {
+    const placedUnits = canvasItems.length;
+    const skillUnits = canvasItems.reduce((acc, c) => acc + (lookupItem(c.name)?.skill ? 1 : 0), 0);
+    const passiveUnits = canvasItems.reduce((acc, c) => acc + (lookupItem(c.name)?.passive ? 1 : 0), 0);
+    const supportLevel = skillUnits + Math.floor(canvasTotals.orange / 60) + Math.floor(canvasTotals.cyan / 80);
+    const clickDamage = Math.max(
+      1,
+      1 + passiveUnits + Math.floor(canvasTotals.orange / 18) + Math.floor(canvasTotals.red / 70)
+    );
+    const autoDamage = Math.max(
+      0,
+      Math.round(canvasTotals.red * 0.38 + placedUnits * 0.75)
+    );
+    const autoInterval = Math.max(
+      240,
+      1700 - canvasTotals.cyan * 8 - placedUnits * 10
+    );
+    const critChance = Math.min(
+      0.5,
+      canvasTotals.silver / 420 + passiveUnits * 0.05
+    );
+    const critMultiplier = 1.6 + Math.min(1.25, canvasTotals.green / 240);
+    const defenseBreak = Math.floor(canvasTotals.silver * 0.42 + canvasTotals.orange * 0.18);
+    const rewardBonus = Math.floor(canvasTotals.green / 95 + canvasTotals.orange / 120 + skillUnits);
+    const skillDamage = placedUnits > 0
+      ? Math.max(
+          clickDamage * 2,
+          Math.round(
+            canvasTotals.red * (1.1 + supportLevel * 0.15) +
+            canvasTotals.orange * 0.45 +
+            canvasTotals.green * 0.25
+          )
+        )
+      : 0;
+    const skillInterval = placedUnits > 0
+      ? Math.max(2400, 8200 - canvasTotals.orange * 15 - canvasTotals.cyan * 12 - supportLevel * 220)
+      : 0;
+    const passiveDps = autoDamage > 0
+      ? Math.round(((1000 / autoInterval) * autoDamage) * 10) / 10
+      : 0;
+
+    return {
+      placedUnits,
+      skillUnits,
+      passiveUnits,
+      supportLevel,
+      clickDamage,
+      autoDamage,
+      autoInterval,
+      critChance,
+      critMultiplier,
+      defenseBreak,
+      rewardBonus,
+      skillDamage,
+      skillInterval,
+      passiveDps,
+    };
+  }, [canvasItems, canvasTotals]);
 
 
     const squareGuide = (r) => {
@@ -1349,61 +1436,71 @@ const handleBattle = () => {
         clipStyle = { clipPath: `inset(${m}% 0% ${m}% 0%)` };
         guideStyle = { position: "absolute", top: `${m}%`, bottom: `${m}%`, left: "0%", right: "0%" };
       }
-      const humanGaugeMax = 100;
-      const humanGaugeVal = Math.min(humanGaugeMax, Math.max(0, humanGauge));
-      const healthVal = canvasTotals.green;
-      const canBattle = healthVal > 0;
+      const critPercent = Math.round(battleStats.critChance * 100);
+      const skillCooldownSec = battleStats.skillInterval ? Math.round((battleStats.skillInterval / 1000) * 10) / 10 : 0;
+      const emptyBattleView = canvasItems.length === 0;
       return (
         <div className="battle-wrap">
-          <div className="battle-scene">
-            {allyMaxHP > 0 && (
-              <div className={`ally-hp hud hud-top-left ${allyHitPulse ? "ally-hit" : ""}`}>
-                <div className="ally-hp-bar">
-                  <div className="ally-hp-back" style={{ width: `${Math.max(0, allyHpLag) / (allyMaxHP || 1) * 100}%` }}></div>
-                  <div className="ally-hp-fill" style={{ width: `${Math.max(0, allyHP) / (allyMaxHP || 1) * 100}%` }}></div>
+          <div className={`battle-scene ${emptyBattleView ? "empty-view" : ""}`} onClick={emptyBattleView ? handleAssembleCore : undefined}>
+            {!emptyBattleView && (
+            <div className="battle-panel battle-panel-left">
+              <div className="battle-panel-title">制圧ライン</div>
+              <div className="battle-metric-grid">
+                <div className="battle-metric">
+                  <span>配置数</span>
+                  <strong>{battleStats.placedUnits}</strong>
                 </div>
-                <div className="ally-hp-text">{allyHP} / {allyMaxHP}</div>
-                <div className="ally-extra">
-                  <div className="ally-action">
-                    <span className="action-label">攻撃まで</span>
-                    <div className="action-progress ally"><div className="action-fill" style={{ width: `${Math.min(100, allyProgress)}%` }}></div></div>
-                  </div>
-                  <div className="human-meter compact">
-                    <span className="human-label">人類滅ぼしゲージ</span>
-                    <div className="human-bar">
-                      <div className="human-fill" style={{ width: `${humanGaugeVal}%` }}></div>
-                    </div>
-                    <span className="human-val">{humanGaugeVal}/100</span>
-                    <span className="human-points">ポイント: {humanPoints}</span>
-                  </div>
+                <div className="battle-metric">
+                  <span>クリック</span>
+                  <strong>{battleStats.clickDamage}</strong>
+                </div>
+                <div className="battle-metric">
+                  <span>自動攻撃</span>
+                  <strong>{battleStats.autoDamage}</strong>
+                </div>
+                <div className="battle-metric">
+                  <span>防御貫通</span>
+                  <strong>{battleStats.defenseBreak}</strong>
                 </div>
               </div>
-            )}
-            {mode === "battle" && (enemyPlaced || enemyDying) && (
-              <div className={`enemy-hp hud hud-top-out`}>
-                <div className="skill-note-frame"></div>
-                {skillNotes.map((note, idx) => (
-                  <div
-                    key={note.id}
-                    className={`skill-note ${idx === 1 ? "older" : ""} slide-in`}
-                    style={{ top: `${-80 - idx * 74}px`, transform: `translateX(${idx === 0 ? "0" : "-6px"})` }}
-                  >
-                    {note.lines.map((line, i2) => <div key={`sn-${note.id}-${i2}`}>{line}</div>)}
-                  </div>
-                ))}
-                <div className="floor-label">人類 {floor}人目</div>
-                <div className={`enemy-hp-main ${enemyHitPulse ? "hit" : ""}`}>
-                  <div className="enemy-hp-bar">
-                    <div className="enemy-hp-back" style={{ width: `${Math.max(0, enemyHpLag) / (enemyMaxHP || 1) * 100}%` }}></div>
-                    <div className="enemy-hp-fill" style={{ width: `${Math.max(0, enemyHP) / (enemyMaxHP || 1) * 100}%` }}></div>
-                  </div>
-                  <div className="enemy-hp-text">{enemyHP} / {enemyMaxHP}</div>
+              <div className="ally-extra">
+                <div className="ally-action">
+                  <span className="action-label">自動攻撃まで</span>
+                  <div className="action-progress ally"><div className="action-fill" style={{ width: `${Math.min(100, allyProgress)}%` }}></div></div>
                 </div>
-                <div className="action-progress"><div className="action-fill enemy" style={{ width: `${Math.min(100, enemyProgress)}%` }}></div></div>
+                <div className="ally-action">
+                  <span className="action-label">支援スキル</span>
+                  <div className="action-progress ally"><div className="action-fill enemy" style={{ width: `${Math.min(100, enemyProgress)}%` }}></div></div>
+                </div>
               </div>
+              <div className="battle-support-copy">
+                <div>秒間火力: 約 {battleStats.passiveDps}</div>
+                <div>クリティカル: {critPercent}%</div>
+                <div>支援レベル: {battleStats.supportLevel}</div>
+                <div>撃破素材: +{battleStats.rewardBonus}</div>
+              </div>
+            </div>
             )}
-            <div className={`battle-clip left-offset ${allyHitPulse ? "ally-hit-img" : ""}`} style={clipStyle}>
-              <div className="battle-guide" style={guideStyle}></div>
+            {!emptyBattleView && (
+            <div className={`enemy-hp hud hud-top-out`}>
+              <div className="floor-label">人類 {floor}人目</div>
+              <div className={`enemy-hp-main ${enemyHitPulse ? "hit" : ""}`}>
+                <div className="enemy-hp-bar">
+                  <div className="enemy-hp-back" style={{ width: `${Math.max(0, enemyHpLag) / (enemyMaxHP || 1) * 100}%` }}></div>
+                  <div className="enemy-hp-fill" style={{ width: `${Math.max(0, enemyHP) / (enemyMaxHP || 1) * 100}%` }}></div>
+                </div>
+                <div className="enemy-hp-text">{enemyHP} / {enemyMaxHP}</div>
+              </div>
+              <div className="battle-subline">
+                防御 {enemyDef} / クリックで破壊
+              </div>
+            </div>
+            )}
+            <div
+              className={`battle-clip ${emptyBattleView ? "empty-view" : "left-offset"} ${allyHitPulse ? "ally-hit-img" : ""}`}
+              style={emptyBattleView ? undefined : clipStyle}
+            >
+              {!emptyBattleView && <div className="battle-guide" style={guideStyle}></div>}
               {canvasItems.map((c) => (
                 <div
                   key={c.id}
@@ -1418,63 +1515,54 @@ const handleBattle = () => {
                   <img src={c.img} alt={c.name} draggable={false} />
                 </div>
               ))}
-              {allyHitPulse ? <div className="ally-dmg ally-dmg-float">-{allyLastDmg}</div> : null}
-            </div>
-            {mode === "battle" && (enemyPlaced || enemyDying) && (
-              <div className="battle-hand">
-                <div className="hand-list">
-                  {Array.from({ length: 5 }, (_, idx) => handCards[idx] || null).map((h, idx) => (
-                    h ? (() => {
-                      const cost = h.skill?.cost ?? 1;
-                      const usable = humanPoints >= cost;
-                      return (
-                      <div className={`hand-card filled ${usable ? "" : "disabled"}`} key={`hand-${idx}`} onClick={() => handleSkillPlay(h, idx)}>
-                        <div className="hand-name">{h.name}</div>
-                        <div className="hand-skill">{h.skill?.name || "情報なし"}</div>
-                        <div className="hand-cost">消費: {cost}</div>
-                      </div>
-                      );
-                    })() : (
-                      <div className="hand-card empty" key={`hand-empty-${idx}`}>
-                        <div className="hand-name">空き</div>
-                        <div className="hand-skill">滅ぼしドローで補充</div>
-                      </div>
-                    )
-                  ))}
+              {emptyBattleView && (
+                <div className="battle-empty-state" onClick={handleAssembleCore} role="button" tabIndex={0} onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleAssembleCore();
+                  }
+                }}>
+                  <div className="battle-empty-title">ロボットがいません</div>
+                  <div className="battle-empty-tip">画面をクリックして組み立てるへ</div>
                 </div>
-                <button className={`toggle holo-draw-btn ${holoPulse ? "pulse" : ""}`} onClick={handleHoloDraw} disabled={humanPoints < 1}>滅ドロー ({Math.max(0, humanPoints)})</button>
+              )}
+            </div>
+            {!emptyBattleView && (
+            <div className="battle-panel battle-support-panel">
+              <div className="battle-panel-title">工場支援ログ</div>
+              <div className="battle-note-list">
+                {skillNotes.length ? skillNotes.map((note) => (
+                  <div key={note.id} className="battle-note-item">
+                    {note.lines.map((line, idx) => <div key={`${note.id}-${idx}`}>{line}</div>)}
+                  </div>
+                )) : (
+                  <div className="battle-note-item empty">
+                    クリックでダメージ。配置キャラが自動攻撃を続けます。
+                  </div>
+                )}
               </div>
+              <div className="battle-support-copy compact">
+                <div>
+                  スキル支援:
+                  {battleStats.skillDamage > 0
+                    ? ` ${skillCooldownSec}秒ごとに ${battleStats.skillDamage} ダメージ`
+                    : " キャラを配置すると起動"}
+                </div>
+                <div>
+                  特殊パッシブ:
+                  {hasClickPassive
+                    ? ` クリック補助ライン稼働中 (+${battleStats.passiveUnits})`
+                    : " 00系キャラでクリック効率アップ"}
+                </div>
+              </div>
+            </div>
             )}
           </div>
-        {!enemyPlaced && !enemyDying && (
-          <button
-            className={`battle-start-btn ${!canBattle ? "disabled" : ""}`}
-            aria-disabled={!canBattle}
-            onClick={() => {
-              if (!canBattle) {
-                playSound("se5", 0.75);
-                return;
-              }
-              clearBattleTimers();
-              setEnemyHP(100);
-              setEnemyMaxHP(100);
-              setEnemyAtk(10);
-              setEnemyAct(10);
-              setEnemyDef(20);
-              setHumanGauge(0);
-              setHumanPoints((v) => v);
-              setAllyHP(canvasTotals.green);
-              setAllyMaxHP(canvasTotals.green);
-              setEnemyPlaced(true);
-              setInBattlePhase(true);
-            }}
-          >戦闘開始！</button>
-        )}
-        {mode === "battle" && (enemyPlaced || enemyDying) && (
+        {!emptyBattleView && mode === "battle" && (enemyPlaced || enemyDying || currentEnemy) && (
           <div
-            className={`battle-enemy ${enemyDying ? "dying" : ""} ${enemyHitPulse ? "hit" : ""} ${enemyPlaced && hasClickPassive && !enemyDying ? "clickable" : ""}`}
+            className={`battle-enemy ${enemyDying ? "dying" : ""} ${enemyHitPulse ? "hit" : ""} ${enemyPlaced && !enemyDying ? "clickable" : ""}`}
             onClick={handleEnemyClick}
-            title={enemyPlaced && hasClickPassive ? "クリックで1ダメージ" : undefined}
+            title={enemyPlaced && !enemyDying ? `クリックで ${battleStats.clickDamage} ダメージ` : undefined}
           >
             <img src={currentEnemy?.img || "/enemy/人類.png"} alt={currentEnemy?.key || "敵"} />
             {enemyHitPulse ? (
@@ -1604,78 +1692,96 @@ const handleBattle = () => {
 
 
   useEffect(() => {
-    if (mode !== "battle") {
-      clearBattleTimers();
+    if (!enemyPlaced || enemyDying) {
+      clearBattleLoop();
+      setAllyProgress(0);
+      setEnemyProgress(0);
       return;
     }
-    const allyInterval = Math.max(500, (canvasTotals.cyan > 0 ? (1000 * 100) / canvasTotals.cyan : 1000));
-    const enemyInterval = enemyAct && enemyAct > 0 ? (1000 * (100 / enemyAct)) : 10000;
-    let allyStart = Date.now();
-    let enemyStart = Date.now();
-    const allyTick = () => {
-      allyStart = Date.now();
-      if (!enemyPlaced) return;
+
+    let autoElapsed = 0;
+    let skillElapsed = 0;
+    let lastTick = Date.now();
+
+    battleTimerRef.current = setInterval(() => {
       if (enemyHPRef.current <= 0) return;
-      if (canvasTotals.red > 0) {
-        setEnemyHP((hp) => {
-          if (hp <= 0) return hp;
-          const dmg = calcDamageTaken(canvasTotals.red, enemyDef);
-          const next = Math.max(0, hp - dmg);
-          setEnemyLastDmg(dmg);
-          setEnemyHitPulse((v) => v + 1);
-          if (next <= 0) {
-            handleEnemyDefeat();
-            return next;
-          }
-          return next;
-        });
-      }
-      if (canvasTotals.orange > 0) {
-        const total = humanGaugeRef.current + canvasTotals.orange;
-        if (total >= 100) {
-          const nextGauge = total % 100;
-          setHumanGauge(nextGauge);
-          humanGaugeRef.current = nextGauge;
-          setHumanPoints((p) => p + 1);
-        } else {
-          setHumanGauge(total);
-          humanGaugeRef.current = total;
-        }
-      }
-    };
-    const enemyTick = () => {
-      enemyStart = Date.now();
-      if (!enemyPlaced) return;
-      if (enemyHPRef.current <= 0) return;
-      setAllyHP((hp) => {
-        if (hp <= 0) return hp;
-        const dmg = calcDamageTaken(enemyAtk, canvasTotals.silver);
-        const next = Math.max(0, hp - dmg);
-        setAllyLastDmg(dmg);
-        setAllyHitPulse((v) => v + 1);
-        if (next <= 0) {
-          triggerGameOver();
-          return 0;
-        }
-        return next;
-      });
-    };
-    battleTimerRef.current = setInterval(allyTick, allyInterval);
-    enemyTimerRef.current = setInterval(enemyTick, enemyInterval);
-    const progTimer = setInterval(() => {
       const now = Date.now();
-      const allyProg = Math.min(100, ((now - allyStart) / allyInterval) * 100);
-      const enemyProg = Math.min(100, ((now - enemyStart) / enemyInterval) * 100);
-      setAllyProgress(allyProg);
-      setEnemyProgress(enemyProg);
-    }, 200);
+      const delta = now - lastTick;
+      lastTick = now;
+
+      autoElapsed += delta;
+      while (autoElapsed >= battleStats.autoInterval) {
+        autoElapsed -= battleStats.autoInterval;
+        if (battleStats.autoDamage > 0) {
+          const effectiveDef = Math.max(1, enemyDef - battleStats.defenseBreak);
+          const dmg = Math.max(1, calcDamageTaken(Math.max(1, battleStats.autoDamage), effectiveDef));
+          let applied = false;
+          let defeated = false;
+          setEnemyHP((hp) => {
+            if (hp <= 0) return hp;
+            applied = true;
+            const next = Math.max(0, hp - dmg);
+            defeated = next <= 0;
+            return next;
+          });
+          if (applied) {
+            setEnemyLastDmg(dmg);
+            setEnemyHitPulse((v) => v + 1);
+            if (defeated) {
+              handleEnemyDefeat();
+              return;
+            }
+          }
+        }
+      }
+
+      if (battleStats.skillInterval > 0) {
+        skillElapsed += delta;
+        while (skillElapsed >= battleStats.skillInterval) {
+          skillElapsed -= battleStats.skillInterval;
+          const effectiveDef = Math.max(1, enemyDef - battleStats.defenseBreak);
+          const dmg = Math.max(1, calcDamageTaken(Math.max(1, battleStats.skillDamage), effectiveDef));
+          let applied = false;
+          let defeated = false;
+          setEnemyHP((hp) => {
+            if (hp <= 0) return hp;
+            applied = true;
+            const next = Math.max(0, hp - dmg);
+            defeated = next <= 0;
+            return next;
+          });
+          if (applied) {
+            setEnemyLastDmg(dmg);
+            setEnemyHitPulse((v) => v + 1);
+            appendBattleNote([
+              "支援スキル起動",
+              `${dmg} ダメージ`,
+            ]);
+            playSound("se4", 0.4);
+            if (defeated) {
+              handleEnemyDefeat();
+              return;
+            }
+          }
+        }
+      } else {
+        skillElapsed = 0;
+      }
+
+      setAllyProgress(Math.min(100, (autoElapsed / battleStats.autoInterval) * 100));
+      setEnemyProgress(
+        battleStats.skillInterval > 0
+          ? Math.min(100, (skillElapsed / battleStats.skillInterval) * 100)
+          : 0
+      );
+    }, 100);
+
     return () => {
-      clearBattleTimers();
-      clearInterval(progTimer);
+      clearBattleLoop();
       setAllyProgress(0);
       setEnemyProgress(0);
     };
-  }, [mode, enemyPlaced, canvasTotals.red, canvasTotals.orange, canvasTotals.cyan, canvasTotals.silver, enemyAct, enemyAtk, enemyDef]);
+  }, [enemyPlaced, enemyDying, enemyDef, battleStats]);
 
   const handleDexWheel = (e) => {
     if (isMobile) return;
@@ -1711,18 +1817,31 @@ const handleBattle = () => {
       <audio ref={audioRefs.se7} src="/se/se7.mp3" preload="auto" />
 
       <div className={`wrap ${isMobile ? "mobile" : "desktop"}`}>
-        <h1>ロボットコージョー ガチャ</h1>
-        <div className="device-chip">
-          <span className="dot"></span>
-          <span>{isMobile ? "スマホモード: タップで貼り付け・削除ボタン付き" : "PCモード: ドラッグ＆ドロップ＋Deleteキー"}</span>
+        <div className="title-rig">
+          <h1>ロボットコージョー ガチャ</h1>
+          <div className="device-chip">
+            <span className="dot"></span>
+            <span>{isMobile ? "スマホモード: 横持ち対応・タップで貼り付け/削除" : "PCモード: ドラッグ＆ドロップ＋Deleteキー"}</span>
+          </div>
         </div>
 
         <div className="machine-shell">
+          <div className="shell-skeleton" aria-hidden="true">
+            <span className="brace brace-a"></span>
+            <span className="brace brace-b"></span>
+            <span className="brace brace-c"></span>
+            <span className="brace brace-d"></span>
+          </div>
           <div className="side-panel left"><div className="side-window"></div></div>
           <div className="side-panel right"><div className="side-window"></div></div>
           <div className="hazard-bar"></div>
 
             <div className="panel">
+            <div className="panel-struts" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
             <div className="monitor-bar">
               <button className={`monitor-btn ${mode === "normal" ? "active" : "inactive"}`} id="drawBtn" onMouseEnter={() => playSound("se3", 0.65)} onClick={handleDraw}>作る</button>
               <button className={`monitor-btn ${mode === "canvas" ? "active" : "inactive"}`} id="assembleBtn" onClick={handleAssemble}>組み立てる</button>
@@ -1878,20 +1997,6 @@ const handleBattle = () => {
   );
 }
 export default App;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
