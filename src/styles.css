@@ -1064,7 +1064,6 @@ h3 {
   .inspector {
     order: 0;
     min-height: 0;
-    height: 100%;
     padding: 10px;
   }
 
@@ -1080,14 +1079,7 @@ h3 {
     display: flex;
     flex-direction: column;
     align-self: stretch;
-  }
-
-  .shelf {
     overflow: hidden;
-  }
-
-  .inspector {
-    overflow: visible;
   }
 
   .panel-head {
@@ -1123,6 +1115,7 @@ h3 {
     min-height: 0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
+    max-height: clamp(220px, 40svh, 300px);
     overflow: auto;
     padding-right: 1px;
     -webkit-overflow-scrolling: touch;
