@@ -99,7 +99,7 @@ const DEFAULT_BGM_VOLUME = 0.42;
 const DEFAULT_SE_VOLUME = 0.68;
 const COMPACT_LANDSCAPE_QUERY =
   "(hover: none) and (pointer: coarse) and (orientation: landscape) and (max-width: 960px) and (max-height: 600px)";
-const COMPACT_LANDSCAPE_STAMP_SCALE = 0.52;
+const COMPACT_LANDSCAPE_STAMP_SCALE = 0.48;
 
 const BACKGROUNDS = [
   { id: "plain", label: "白紙", note: "まっしろな背景" },
