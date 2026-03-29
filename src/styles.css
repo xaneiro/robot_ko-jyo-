@@ -842,9 +842,10 @@ h3 {
   line-height: 1.7;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 980px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
   }
 
   .shelf,
@@ -852,32 +853,115 @@ h3 {
     position: static;
   }
 
+  .board-panel {
+    order: 1;
+  }
+
+  .shelf {
+    order: 2;
+  }
+
+  .inspector {
+    order: 3;
+  }
+
+  .hero {
+    padding: 24px 26px;
+  }
+
+  .panel-head,
+  .board-toolbar,
+  .media-head {
+    align-items: stretch;
+  }
+
   .shelf-grid {
     max-height: none;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .media-rack {
     grid-template-columns: 1fr;
   }
+
+  .bg-picker,
+  .toolbar-actions {
+    width: 100%;
+  }
 }
 
-@media (max-width: 880px) {
+@media (max-width: 760px) {
   .wrap {
-    padding: 18px 14px 40px;
+    padding: 18px 14px 36px;
   }
 
   .hero {
     grid-template-columns: 1fr;
+    padding: 22px 20px;
+  }
+
+  .workspace {
+    gap: 14px;
+  }
+
+  .shelf,
+  .board-panel,
+  .inspector,
+  .tips {
+    padding: 18px;
+  }
+
+  .board-shell {
+    padding: 12px;
+  }
+
+  .board-empty {
     padding: 22px;
   }
 
-  .tips-grid {
-    grid-template-columns: 1fr;
+  .board-empty-card {
+    padding: 18px;
+  }
+
+  .board-empty-card strong {
+    font-size: 1.05rem;
   }
 
   .shelf-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .shelf-item {
+    padding: 10px;
+    border-radius: 20px;
+  }
+
+  .shelf-name {
+    font-size: 12px;
+  }
+
+  .board-controls {
+    gap: 12px;
+  }
+
+  .board-toolbar,
+  .media-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .media-head {
+    gap: 10px;
+  }
+
+  .media-tag {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .tips-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -895,17 +979,6 @@ h3 {
     border-radius: 18px;
   }
 
-  .shelf,
-  .board-panel,
-  .inspector,
-  .tips {
-    padding: 18px;
-  }
-
-  .board-shell {
-    padding: 12px;
-  }
-
   .bg-picker,
   .toolbar-actions,
   .action-grid,
@@ -918,5 +991,27 @@ h3 {
   .action-btn,
   .inline-btn {
     flex: 1 1 auto;
+  }
+
+  .search-label input,
+  .chip-btn,
+  .ghost-btn,
+  .action-btn,
+  .inline-btn {
+    min-height: 46px;
+  }
+
+  .media-card,
+  .preview-card,
+  .empty-inspector {
+    padding: 14px;
+  }
+
+  .preview-art {
+    padding: 12px;
+  }
+
+  .range-label {
+    font-size: 12px;
   }
 }
