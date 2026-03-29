@@ -1,8 +1,6 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import "./styles.css";
-const STAT_LABELS = { red: "攻撃力", orange: "滅ぼし力", green: "体力", cyan: "行動力", silver: "防御力" };
-
 
 const FILES = [
   "00メカニカルガール足立.png",
@@ -90,1929 +88,1314 @@ const FILES = [
   "79変わった人間もいるんですね.png",
 ];
 
+const STORAGE_KEY = "robot_kojyo_stamp_studio_v2";
+const BOARD_ASPECT_RATIO = 4 / 3;
+const EXPORT_WIDTH = 1600;
+const EXPORT_HEIGHT = Math.round(EXPORT_WIDTH / BOARD_ASPECT_RATIO);
+const DEFAULT_SIZE = 180;
+const CUSTOM_BACKGROUND_ID = "custom";
+const BGM_SRC = "/bgm/bgm3.mp3";
+const DEFAULT_BGM_VOLUME = 0.42;
+const DEFAULT_SE_VOLUME = 0.68;
 
-
-const BASE_00_PREFIX = "00";
-const BASE_00_STATS = { red: 10, orange: 10, green: 100, cyan: 20, silver: 20 };
-const BASE_00_PASSIVE = { name: "パッシブ滅ぼし", desc: "敵をクリックすると1ダメージ（00編成時のみ）" };
-
-const RARITY_BUCKETS = [
-  { rarity: "☆☆☆☆☆", count: 10 },
-  { rarity: "☆☆☆☆", count: 20 },
-  { rarity: "☆☆☆", count: 20 },
-  { rarity: "☆☆", count: 20 },
-  { rarity: "☆", count: Infinity },
+const BACKGROUNDS = [
+  { id: "plain", label: "白紙", note: "まっしろな背景" },
+  { id: "atelier", label: "アトリエ机", note: "やわらかい紙と線" },
+  { id: "blueprint", label: "青写真", note: "設計図っぽいグリッド" },
+  { id: "sunset", label: "ポスター", note: "あたたかい紙ポスター" },
 ];
-const RARITY_MULTIPLIER = { "☆": 1, "☆☆": 1.5, "☆☆☆": 2, "☆☆☆☆": 3, "☆☆☆☆☆": 4 };
 
-const xmur3 = (str) => {
-  let h = 1779033703 ^ str.length;
-  for (let i = 0; i < str.length; i++) {
-    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-    h = (h << 13) | (h >>> 19);
-  }
-  return () => {
-    h = Math.imul(h ^ (h >>> 16), 2246822507);
-    h = Math.imul(h ^ (h >>> 13), 3266489909);
-    h ^= h >>> 16;
-    return h >>> 0;
-  };
+const SOUND_SOURCES = {
+  select: "/se/se1.mp3",
+  place: "/se/se2.mp3",
+  adjust: "/se/se3.mp3",
+  duplicate: "/se/se4.mp3",
+  remove: "/se/se5.mp3",
+  background: "/se/se6.mp3",
+  export: "/se/se7.mp3",
 };
 
-const mulberry32 = (a) => () => {
-  let t = (a += 0x6d2b79f5);
-  t = Math.imul(t ^ (t >>> 15), t | 1);
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+const DEFAULT_BACKGROUND_ID = BACKGROUNDS[0].id;
+
+const clampNum = (value, min, max) => Math.min(max, Math.max(min, value));
+const asNumber = (value, fallback) => {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : fallback;
 };
 
-const rngFromString = (seedStr) => mulberry32(xmur3(seedStr)());
+const createId = () =>
+  globalThis.crypto?.randomUUID?.() ??
+  `stamp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-const shuffleInPlace = (arr, rng) => {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-};
+const fileToLabel = (file) => file.replace(/\.[^.]+$/u, "");
+const fileToImagePath = (file) => `/images/${encodeURIComponent(file)}`;
 
-const useIsMobile = (breakpoint = 768, landscapeHeight = 560, landscapeWidth = 960) => {
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
-    const isShortLandscape =
-      coarsePointer &&
-      window.innerWidth <= landscapeWidth &&
-      window.innerHeight <= landscapeHeight &&
-      window.innerWidth > window.innerHeight;
-    return window.innerWidth <= breakpoint || isShortLandscape;
-  });
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const update = () => {
-      const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
-      const isShortLandscape =
-        coarsePointer &&
-        window.innerWidth <= landscapeWidth &&
-        window.innerHeight <= landscapeHeight &&
-        window.innerWidth > window.innerHeight;
-      setIsMobile(window.innerWidth <= breakpoint || isShortLandscape);
-    };
-    update();
-    window.addEventListener("resize", update);
-    window.addEventListener("orientationchange", update);
-    return () => {
-      window.removeEventListener("resize", update);
-      window.removeEventListener("orientationchange", update);
-    };
-  }, [breakpoint, landscapeHeight, landscapeWidth]);
-  return isMobile;
-};
+const STAMP_CATALOG = FILES.map((file, index) => ({
+  id: `stamp-${index}`,
+  file,
+  name: fileToLabel(file),
+  img: fileToImagePath(file),
+}));
 
-const rarityByKey = (() => {
-  const keys = FILES
-    .filter((file) => !file.startsWith(BASE_00_PREFIX))
-    .map((file) => file.replace(/\.png$/i, ""));
+const sortByZ = (left, right) => asNumber(left.z, 0) - asNumber(right.z, 0);
 
-  shuffleInPlace(keys, rngFromString("rarity-v1"));
+const normalizePlacedStamp = (stamp, index) => {
+  if (!stamp || typeof stamp !== "object") return null;
 
-  const map = {};
-  let cursor = 0;
-  for (const bucket of RARITY_BUCKETS) {
-    const remain = keys.length - cursor;
-    if (remain <= 0) break;
-    const take = bucket.count === Infinity ? remain : Math.min(bucket.count, remain);
-    for (let i = 0; i < take; i++) {
-      map[keys[cursor++]] = bucket.rarity;
-    }
-  }
-  return map;
-})();
-
-const rollStat = (base, mult, rng, spread = 0.15) => {
-  const lo = Math.max(1, mult * (1 - spread));
-  const hi = mult * (1 + spread);
-  const m = lo + (hi - lo) * rng();
-  return Math.max(base, Math.round(base * m));
-};
-
-const rollStats = (key, rarity) => {
-  const mult = RARITY_MULTIPLIER[rarity] ?? 1;
-  const rng = rngFromString("stats-v1|" + key + "|" + rarity);
-  const is00 = key.startsWith(BASE_00_PREFIX);
-  const baseCyan = is00 ? BASE_00_STATS.cyan : 10;
-  const baseSilver = is00 ? BASE_00_STATS.silver : 10;
-  const wide = 0.45; // 行動力・防御力は振れ幅を大きく
   return {
-    red: rollStat(BASE_00_STATS.red, mult, rng),
-    orange: 10, // 滅ぼし力は一律10
-    green: rollStat(BASE_00_STATS.green, mult, rng),
-    cyan: rollStat(baseCyan, mult, rng, wide),
-    silver: rollStat(baseSilver, mult, rng, wide),
+    id: String(stamp.id || createId()),
+    stampId: String(stamp.stampId || `legacy-${index}`),
+    name: String(stamp.name || "スタンプ"),
+    img: String(stamp.img || ""),
+    x: clampNum(asNumber(stamp.x, 50), 2, 98),
+    y: clampNum(asNumber(stamp.y, 50), 4, 96),
+    size: clampNum(asNumber(stamp.size, DEFAULT_SIZE), 72, 420),
+    rotation: clampNum(asNumber(stamp.rotation, 0), -180, 180),
+    opacity: clampNum(asNumber(stamp.opacity, 1), 0.25, 1),
+    flipX: Boolean(stamp.flipX),
+    z: asNumber(stamp.z, index + 1),
   };
 };
 
-// 防御力による被ダメージ補正（100で等倍、20で5倍、200で0.5倍）
-const calcDamageTaken = (rawDmg, defense) => {
-  const def = Math.max(1, defense || 0);
-  const mult = 100 / def;
-  return Math.max(0, Math.ceil(rawDmg * mult));
+const normalizeCustomBackground = (background) => {
+  if (!background || typeof background !== "object") return null;
+  if (!background.src || typeof background.src !== "string") return null;
+
+  return {
+    name: String(background.name || "アップロード背景"),
+    src: background.src,
+  };
 };
 
-const enemyImages = import.meta.glob('/enemy/*.png', { eager: true, as: 'url' });
-const ITEMS = FILES.map((file, idx) => {
-  const base = file.replace(/\.png$/i, "");
-  const m = base.match(/^(\d{1,3})/);
-  const order = m ? Number(m[1]) : 1000 + idx;
-  const key = base;
-  const name = base;
-  const is00 = file.startsWith(BASE_00_PREFIX);
-  const rarity = is00 ? "??" : (rarityByKey[key] || "☆");
-  const stats = is00 ? { ...BASE_00_STATS } : rollStats(key, rarity);
-  let skill;
-  let passive;
-  if (is00) {
-    skill = { name: "人類滅ぼしパンチ", desc: "攻撃力依存、200%のダメージ", cost: 1 };
-    passive = BASE_00_PASSIVE;
-  }
-  return { key, name, img: "/images/" + file, order, idx, stats, rarity, skill, passive };
-}).sort((a, b) => (a.order === b.order ? a.idx - b.idx : a.order - b.order));
+const loadSavedState = () => {
+  if (typeof window === "undefined") return null;
 
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
 
-const LS_DRAWN = "gacha_drawn_map_v1";
-const LS_COUNT = "gacha_count_v3";
-const LS_COUNTS = "gacha_card_counts_v1";
-const LS_CANVAS = "gacha_canvas_v1";
-const MATERIAL_COST = 100;
-const INITIAL_MATERIAL = 180;
-const MAX_CANVAS_RARITY = 20;
-const DRAW_SETTLE_MS_NEW = 1200;
-const DRAW_SETTLE_MS_DUP = 650;
-const MULTI_DRAW_COUNT = 10;
+    const parsed = JSON.parse(raw);
+    const storedStamps = Array.isArray(parsed?.placedStamps) ? parsed.placedStamps : [];
+    const placedStamps = storedStamps
+      .map((stamp, index) => normalizePlacedStamp(stamp, index))
+      .filter(Boolean);
+    const customBackground = normalizeCustomBackground(parsed?.customBackground);
+    const requestedBackgroundId = String(parsed?.backgroundId || DEFAULT_BACKGROUND_ID);
+    const isBuiltInBackground = BACKGROUNDS.some((background) => background.id === requestedBackgroundId);
+    const backgroundId =
+      requestedBackgroundId === CUSTOM_BACKGROUND_ID && customBackground?.src
+        ? CUSTOM_BACKGROUND_ID
+        : isBuiltInBackground
+          ? requestedBackgroundId
+          : DEFAULT_BACKGROUND_ID;
+    const loadedBgmVolume = clampNum(asNumber(parsed?.bgmVolume, DEFAULT_BGM_VOLUME), 0, 1);
+    const loadedIsBgmEnabled = parsed?.isBgmEnabled !== false && loadedBgmVolume > 0;
+    const loadedLastBgmVolume = clampNum(
+      asNumber(parsed?.lastBgmVolume, loadedBgmVolume || DEFAULT_BGM_VOLUME),
+      0,
+      1,
+    );
 
-const randItem = () => ITEMS[Math.floor(Math.random() * ITEMS.length)];
-
-const Badge = ({ got }) => (
-  <span className={`badge ${got ? "got" : "locked"}`}>{got ? "入手済" : "未入手"}</span>
-);
-
-function App() {
-  const isMobile = useIsMobile();
-  const [drawnMap, setDrawnMap] = useState({});
-  const [countsMap, setCountsMap] = useState({});
-  const [drawCount, setDrawCount] = useState(0);
-  const [result, setResult] = useState({ type: "message" });
-  const [activeTab, setActiveTab] = useState("catalog");
-  const [modalImg, setModalImg] = useState(null);
-  const [mode, setMode] = useState("normal");
-  const [gameOver, setGameOver] = useState({ visible: false, floor: 1 });
-  const [confirmExit, setConfirmExit] = useState(false);
-  const [pendingNav, setPendingNav] = useState(null);
-  const [bgmOn, setBgmOn] = useState(true);
-  const [bgmVol, setBgmVol] = useState(0.4);
-  const [lastDrawnName, setLastDrawnName] = useState(null);
-  const [shakeName, setShakeName] = useState(null);
-  const [drawPulse, setDrawPulse] = useState(0);
-  const [showAnother, setShowAnother] = useState(false);
-  const [ownedHover, setOwnedHover] = useState(null);
-  const [materials, setMaterials] = useState(INITIAL_MATERIAL);
-  const [enemyPlaced, setEnemyPlaced] = useState(false);
-  const [floor, setFloor] = useState(1);
-  const [enemyRoster, setEnemyRoster] = useState([]);
-  const [currentEnemy, setCurrentEnemy] = useState(null);
-  const [enemyDying, setEnemyDying] = useState(false);
-  const [inBattlePhase, setInBattlePhase] = useState(false);
-  const [canvasItems, setCanvasItems] = useState([]);
-  const [hoverStat, setHoverStat] = useState("");
-  const [previewPos, setPreviewPos] = useState(null);
-  const [previewItem, setPreviewItem] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [canvasAspect, setCanvasAspect] = useState(16 / 9);
-  const [humanGauge, setHumanGauge] = useState(0);
-  const [humanPoints, setHumanPoints] = useState(0);
-  const [holoPulse, setHoloPulse] = useState(false);
-  const [handCards, setHandCards] = useState(Array(5).fill(null));
-  const humanGaugeRef = useRef(0);
-  const [enemyHP, setEnemyHP] = useState(100);
-  const [enemyMaxHP, setEnemyMaxHP] = useState(100);
-  const [enemyHpLag, setEnemyHpLag] = useState(100);
-  const [allyHP, setAllyHP] = useState(0);
-  const [allyMaxHP, setAllyMaxHP] = useState(0);
-  const [allyHpLag, setAllyHpLag] = useState(0);
-  const [enemyAtk, setEnemyAtk] = useState(10);
-  const [enemyAct, setEnemyAct] = useState(10);
-  const [enemyDef, setEnemyDef] = useState(20);
-  const [enemyHitPulse, setEnemyHitPulse] = useState(0);
-  const [allyHitPulse, setAllyHitPulse] = useState(0);
-  const [enemyLastDmg, setEnemyLastDmg] = useState(0);
-  const [allyLastDmg, setAllyLastDmg] = useState(0);
-  const [skillNotes, setSkillNotes] = useState([]);
-  const enemyHPRef = useRef(enemyHP);
-  const allyHPRef = useRef(allyHP);
-  const battleTimerRef = useRef(null);
-  const enemyTimerRef = useRef(null);
-  const prevHumanPointsRef = useRef(humanPoints);
-  const [allyProgress, setAllyProgress] = useState(0);
-  const [enemyProgress, setEnemyProgress] = useState(0);
-  const listCycleRef = useRef({});
-  const hitCycleRef = useRef({ key: "", count: 0 });
-
-  const dexBodyRef = useRef(null);
-  const historyRef = useRef(null);
-  const ownedRef = useRef(null);
-  const catalogRef = useRef(null);
-  const canvasRef = useRef(null);
-  const dragItemRef = useRef(null);
-  const dragOffsetRef = useRef(null);
-  const resizeStartRef = useRef(null);
-  const resizingRef = useRef(false);
-
-  const audioRefs = {
-    bgm: useRef(null),
-    se1: useRef(null),
-    se2: useRef(null),
-    se3: useRef(null),
-    se4: useRef(null),
-    se5: useRef(null),
-    se6: useRef(null),
-    se7: useRef(null),
-  };
-
-  const playSound = (id, volume = 0.7) => {
-    const el = audioRefs[id]?.current;
-    if (!el) return;
-    const clone = el.cloneNode(true);
-    clone.volume = volume;
-    clone.currentTime = 0;
-    clone.play().catch(() => {});
-  };
-
-
-  const clearBattleLoop = () => {
-    if (battleTimerRef.current) {
-      clearInterval(battleTimerRef.current);
-      battleTimerRef.current = null;
-    }
-  };
-
-  const clearRespawnTimer = () => {
-    if (enemyTimerRef?.current) {
-      clearTimeout(enemyTimerRef.current);
-      enemyTimerRef.current = null;
-    }
-  };
-
-  const clearBattleTimers = () => {
-    clearBattleLoop();
-    clearRespawnTimer();
-  };
-
-  
-  
-  function triggerGameOver() {
-    setGameOver({ visible: true, floor });
-    clearBattleTimers();
-    setInBattlePhase(false);
-    setMode("battle");
-    setEnemyPlaced(true);
-    setEnemyDying(false);
-    setEnemyHP(0);
-  }
-
-const loadEnemies = () => {
-    const roster = Object.keys(enemyImages).map((path, idx) => {
-      const name = path.split("/").pop();
-      const baseHP = 80 + (idx * 13) % 50;
-      const baseAtk = 8 + (idx * 7) % 10;
-      const baseAct = 8 + (idx * 5) % 10;
-      const baseDef = 70 + (idx * 9) % 70; // 70-139付近で防御をばらつかせる
-      return { key: name, img: enemyImages[path] || `/enemy/${name}`, baseHP, baseAtk, baseAct, baseDef };
-    });
-    setEnemyRoster(roster);
-    return roster;
-  };
-
-  const calcEnemyStats = (enemy, floorNum) => {
-    const baseHP = enemy.baseHP;
-    const baseAtk = enemy.baseAtk;
-    const baseAct = enemy.baseAct;
-    const baseDef = enemy.baseDef ?? 100;
     return {
-      hp: Math.max(1, Math.round(baseHP)),
-      atk: Math.max(1, Math.round(baseAtk)),
-      act: Math.max(1, Math.round(baseAct)),
-      def: Math.max(1, Math.round(baseDef)),
-      mult: 1,
+      placedStamps,
+      backgroundId,
+      customBackground,
+      bgmVolume: loadedIsBgmEnabled ? loadedBgmVolume : 0,
+      seVolume: clampNum(asNumber(parsed?.seVolume, DEFAULT_SE_VOLUME), 0, 1),
+      isBgmEnabled: loadedIsBgmEnabled,
+      lastBgmVolume: loadedLastBgmVolume > 0 ? loadedLastBgmVolume : DEFAULT_BGM_VOLUME,
     };
+  } catch (error) {
+    console.warn("Failed to load stamp studio state", error);
+    return null;
+  }
+};
+
+const loadImage = (src) =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+    image.src = src;
+  });
+
+const loadFileImage = (file) =>
+  new Promise((resolve, reject) => {
+    const url = window.URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      window.URL.revokeObjectURL(url);
+      resolve(image);
+    };
+
+    image.onerror = () => {
+      window.URL.revokeObjectURL(url);
+      reject(new Error(`Failed to load uploaded image: ${file.name}`));
+    };
+
+    image.src = url;
+  });
+
+const drawCoverImage = (ctx, image, width, height) => {
+  const naturalWidth = image.naturalWidth || image.width || width;
+  const naturalHeight = image.naturalHeight || image.height || height;
+  const scale = Math.max(width / naturalWidth, height / naturalHeight);
+  const drawWidth = naturalWidth * scale;
+  const drawHeight = naturalHeight * scale;
+  const x = (width - drawWidth) / 2;
+  const y = (height - drawHeight) / 2;
+
+  ctx.drawImage(image, x, y, drawWidth, drawHeight);
+};
+
+const prepareUploadedBackground = async (file) => {
+  const image = await loadFileImage(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = EXPORT_WIDTH;
+  canvas.height = EXPORT_HEIGHT;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas context is unavailable");
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, EXPORT_WIDTH, EXPORT_HEIGHT);
+  drawCoverImage(ctx, image, EXPORT_WIDTH, EXPORT_HEIGHT);
+
+  return {
+    name: file.name.replace(/\.[^.]+$/u, "") || "アップロード背景",
+    src: canvas.toDataURL("image/jpeg", 0.88),
   };
+};
 
+const paintAtelierBackground = (ctx, width, height) => {
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, "#fcf0cb");
+  gradient.addColorStop(1, "#f0d08f");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
 
-  function handleEnemyDefeat() {
-    const multInfo = currentEnemy ? calcEnemyStats(currentEnemy, floor).mult : 1;
-    const drop = Math.max(1, Math.round(16 * multInfo + (battleStats?.rewardBonus || 0)));
-    setMaterials((m) => m + drop);
-    setSkillNotes((prev) => [
-      {
-        id: `${Date.now()}-${Math.random()}`,
-        lines: [
-          `人類 ${floor}人目 を撃破`,
-          `素材 +${drop}`,
-        ],
-      },
-      ...prev,
-    ].slice(0, 3));
-    playSound("se6", 0.55);
-    const nextFloor = floor + 1;
-    setFloor(nextFloor);
-    clearBattleLoop();
-    clearRespawnTimer();
-    setEnemyPlaced(false);
-    setEnemyDying(true);
-    enemyTimerRef.current = setTimeout(() => {
-      spawnEnemy(nextFloor);
-    }, 550);
+  ctx.save();
+  ctx.strokeStyle = "rgba(118, 78, 24, 0.08)";
+  ctx.lineWidth = 1;
+  for (let y = 36; y < height; y += 40) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+  for (let x = 36; x < width; x += 40) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
   }
 
-const spawnEnemy = (floorNum) => {
-    setEnemyDying(false);
-    const roster = enemyRoster.length ? enemyRoster : loadEnemies();
-    const pick = roster[Math.floor(Math.random() * roster.length)];
-    const targetFloor = floorNum ?? floor;
-    const stats = calcEnemyStats(pick, targetFloor);
-    setCurrentEnemy(pick);
-    setEnemyHP(stats.hp);
-    setEnemyMaxHP(stats.hp);
-    setEnemyHpLag(stats.hp);
-    setEnemyAtk(stats.atk);
-    setEnemyAct(stats.act);
-    setEnemyDef(stats.def);
-    setEnemyHitPulse(0);
-    setEnemyLastDmg(0);
-    setEnemyPlaced(true);
+  for (let i = 0; i < 42; i += 1) {
+    const radius = 18 + (i % 4) * 8;
+    const x = (width / 41) * i;
+    const y = (height / 7) * ((i * 3) % 7);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+};
+
+const paintBlueprintBackground = (ctx, width, height) => {
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, "#1a416f");
+  gradient.addColorStop(1, "#0d2541");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= width; x += 48) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= height; y += 48) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
+  ctx.lineWidth = 2;
+  for (let x = 0; x <= width; x += 192) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= height; y += 192) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+};
+
+const paintSunsetBackground = (ctx, width, height) => {
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, "#ffe0b7");
+  gradient.addColorStop(0.55, "#ff9e86");
+  gradient.addColorStop(1, "#ff6d6f");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+
+  const leftGlow = ctx.createRadialGradient(
+    width * 0.18,
+    height * 0.2,
+    24,
+    width * 0.18,
+    height * 0.2,
+    width * 0.32,
+  );
+  leftGlow.addColorStop(0, "rgba(255,255,255,0.55)");
+  leftGlow.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = leftGlow;
+  ctx.fillRect(0, 0, width, height);
+
+  const rightGlow = ctx.createRadialGradient(
+    width * 0.82,
+    height * 0.74,
+    30,
+    width * 0.82,
+    height * 0.74,
+    width * 0.26,
+  );
+  rightGlow.addColorStop(0, "rgba(255,227,177,0.35)");
+  rightGlow.addColorStop(1, "rgba(255,227,177,0)");
+  ctx.fillStyle = rightGlow;
+  ctx.fillRect(0, 0, width, height);
+};
+
+const paintPresetBackground = (ctx, width, height, backgroundId) => {
+  if (backgroundId === "plain") {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    return;
+  }
+
+  if (backgroundId === "blueprint") {
+    paintBlueprintBackground(ctx, width, height);
+    return;
+  }
+
+  if (backgroundId === "sunset") {
+    paintSunsetBackground(ctx, width, height);
+    return;
+  }
+
+  paintAtelierBackground(ctx, width, height);
+};
+
+const renderBackgroundToContext = async (ctx, width, height, backgroundId, customBackground) => {
+  if (backgroundId === CUSTOM_BACKGROUND_ID && customBackground?.src) {
+    const image = await loadImage(customBackground.src);
+    drawCoverImage(ctx, image, width, height);
+    return;
+  }
+
+  paintPresetBackground(ctx, width, height, backgroundId);
+};
+
+const downloadBlob = (blob, filename) => {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+};
+
+export default function App() {
+  const boardRef = useRef(null);
+  const dragRef = useRef(null);
+  const nextZRef = useRef(1);
+  const fileInputRef = useRef(null);
+  const bgmRef = useRef(null);
+  const resumeBgmRef = useRef(() => {});
+  const bgmEnabledRef = useRef(true);
+  const bgmVolumeRef = useRef(DEFAULT_BGM_VOLUME);
+  const lastBgmVolumeRef = useRef(DEFAULT_BGM_VOLUME);
+
+  const [placedStamps, setPlacedStamps] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [armedStampId, setArmedStampId] = useState(null);
+  const [search, setSearch] = useState("");
+  const [backgroundId, setBackgroundId] = useState(DEFAULT_BACKGROUND_ID);
+  const [customBackground, setCustomBackground] = useState(null);
+  const [hasLoadedSave, setHasLoadedSave] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isPreparingBackground, setIsPreparingBackground] = useState(false);
+  const [bgmVolume, setBgmVolume] = useState(DEFAULT_BGM_VOLUME);
+  const [seVolume, setSeVolume] = useState(DEFAULT_SE_VOLUME);
+  const [isBgmEnabled, setIsBgmEnabled] = useState(true);
+  const [bgmState, setBgmState] = useState("starting");
+
+  const resumeBgm = () => {
+    resumeBgmRef.current?.();
   };
 
-  
-  useEffect(() => { enemyHPRef.current = enemyHP; }, [enemyHP]);
-  useEffect(() => { allyHPRef.current = allyHP; }, [allyHP]);
-  useEffect(() => { humanGaugeRef.current = humanGauge; }, [humanGauge]);
-  useEffect(() => {
-    if (humanPoints > prevHumanPointsRef.current) {
-      setHoloPulse(true);
-      const timer = setTimeout(() => setHoloPulse(false), 500);
-      prevHumanPointsRef.current = humanPoints;
-      return () => clearTimeout(timer);
-    }
-    prevHumanPointsRef.current = humanPoints;
-  }, [humanPoints]);
+  const playSe = (key, options = {}) => {
+    resumeBgm();
+    if (seVolume <= 0) return;
 
+    const src = SOUND_SOURCES[key];
+    if (!src) return;
+
+    const audio = new Audio(src);
+    audio.volume = clampNum(seVolume * (options.volumeMultiplier ?? 1), 0, 1);
+    audio.playbackRate = options.playbackRate ?? 1;
+    audio.play().catch(() => {});
+  };
 
   useEffect(() => {
-    if (enemyHitPulse) {
-      const timer = setTimeout(() => setEnemyHitPulse(0), 320);
-      return () => clearTimeout(timer);
+    const saved = loadSavedState();
+    if (saved) {
+      setPlacedStamps(saved.placedStamps);
+      setBackgroundId(saved.backgroundId);
+      setCustomBackground(saved.customBackground);
+      setBgmVolume(saved.bgmVolume);
+      setSeVolume(saved.seVolume);
+      setIsBgmEnabled(saved.isBgmEnabled);
+      lastBgmVolumeRef.current = saved.lastBgmVolume > 0 ? saved.lastBgmVolume : DEFAULT_BGM_VOLUME;
+      nextZRef.current = saved.placedStamps.reduce(
+        (max, stamp) => Math.max(max, asNumber(stamp.z, 0)),
+        0,
+      ) + 1;
     }
-  }, [enemyHitPulse]);
-  useEffect(() => {
-    if (allyHitPulse) {
-      const timer = setTimeout(() => setAllyHitPulse(0), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [allyHitPulse]);
-  useEffect(() => {
-    let t;
-    setEnemyHpLag((prev) => {
-      if (enemyHP >= prev) return enemyHP;
-      t = setTimeout(() => setEnemyHpLag(enemyHP), 200);
-      return prev;
-    });
-    return () => t && clearTimeout(t);
-  }, [enemyHP]);
-  useEffect(() => {
-    let t;
-    setAllyHpLag((prev) => {
-      if (allyHP >= prev) return allyHP;
-      t = setTimeout(() => setAllyHpLag(allyHP), 200);
-      return prev;
-    });
-    return () => t && clearTimeout(t);
-  }, [allyHP]);
-  useEffect(() => {
-    if (allyHitPulse) {
-      const timer = setTimeout(() => setAllyHitPulse(0), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [allyHitPulse]);
-
-  useEffect(() => {
-    const bgm = audioRefs.bgm.current;
-    if (!bgm) return;
-    const handleTimeUpdate = () => {
-      if (bgm.duration && bgm.currentTime > bgm.duration - 0.12) {
-        bgm.currentTime = 0;
-        bgm.play().catch(() => {});
-      }
-    };
-    const handleEnded = () => {
-      bgm.currentTime = 0;
-      bgm.play().catch(() => {});
-    };
-    bgm.loop = true;
-    bgm.addEventListener("timeupdate", handleTimeUpdate);
-    bgm.addEventListener("ended", handleEnded);
-    return () => {
-      bgm.removeEventListener("timeupdate", handleTimeUpdate);
-      bgm.removeEventListener("ended", handleEnded);
-    };
+    setHasLoadedSave(true);
   }, []);
 
   useEffect(() => {
-    const bgm = audioRefs.bgm.current;
-    if (!bgm) return;
-    bgm.volume = bgmVol;
-    if (bgmOn) {
-      const play = bgm.play();
-      if (play && typeof play.catch === "function") play.catch(() => {});
-    } else {
-      bgm.pause();
-    }
-  }, [bgmOn, bgmVol]);
+    if (!hasLoadedSave || typeof window === "undefined") return;
 
-  useEffect(() => {
-    const handler = () => {
-      if (!bgmOn) return;
-      const bgm = audioRefs.bgm.current;
-      if (!bgm) return;
-      bgm.play().catch(() => {});
-    };
-    document.addEventListener("click", handler, { once: true });
-    return () => document.removeEventListener("click", handler);
-  }, [bgmOn]);
-
-  useEffect(() => {
-    const savedMat = localStorage.getItem("materials");
-    if (savedMat) setMaterials(Number(savedMat));
-    const saved = localStorage.getItem(LS_CANVAS);
-    if (!saved) return;
     try {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) setCanvasItems(parsed);
-    } catch {}
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          backgroundId,
+          customBackground,
+          placedStamps,
+          bgmVolume,
+          seVolume,
+          isBgmEnabled,
+          lastBgmVolume: lastBgmVolumeRef.current,
+        }),
+      );
+    } catch (error) {
+      console.warn("Failed to save stamp studio state", error);
+    }
+  }, [backgroundId, bgmVolume, customBackground, hasLoadedSave, isBgmEnabled, placedStamps, seVolume]);
+
+  useEffect(() => {
+    bgmEnabledRef.current = isBgmEnabled;
+  }, [isBgmEnabled]);
+
+  useEffect(() => {
+    bgmVolumeRef.current = bgmVolume;
+    if (bgmVolume > 0) {
+      lastBgmVolumeRef.current = bgmVolume;
+    }
+  }, [bgmVolume]);
+
+  useEffect(() => {
+    const audio = new Audio(BGM_SRC);
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = bgmVolume;
+    bgmRef.current = audio;
+
+    const syncPlaying = () => setBgmState("playing");
+    const syncWaiting = () => setBgmState(bgmEnabledRef.current ? "waiting" : "off");
+    const syncError = () => setBgmState("error");
+
+    audio.addEventListener("play", syncPlaying);
+    audio.addEventListener("playing", syncPlaying);
+    audio.addEventListener("pause", syncWaiting);
+    audio.addEventListener("error", syncError);
+
+    const tryPlay = () => {
+      if (!bgmEnabledRef.current || bgmVolumeRef.current <= 0) {
+        audio.pause();
+        setBgmState("off");
+        return;
+      }
+      audio.volume = bgmVolumeRef.current;
+      audio
+        .play()
+        .then(() => setBgmState("playing"))
+        .catch(() => setBgmState("waiting"));
+    };
+
+    resumeBgmRef.current = tryPlay;
+    tryPlay();
+
+    const unlockAudio = () => {
+      tryPlay();
+    };
+
+    window.addEventListener("pointerdown", unlockAudio, true);
+    window.addEventListener("keydown", unlockAudio, true);
+    window.addEventListener("touchstart", unlockAudio, true);
+
+    return () => {
+      window.removeEventListener("pointerdown", unlockAudio, true);
+      window.removeEventListener("keydown", unlockAudio, true);
+      window.removeEventListener("touchstart", unlockAudio, true);
+      audio.pause();
+      audio.removeEventListener("play", syncPlaying);
+      audio.removeEventListener("playing", syncPlaying);
+      audio.removeEventListener("pause", syncWaiting);
+      audio.removeEventListener("error", syncError);
+      resumeBgmRef.current = () => {};
+      bgmRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(LS_DRAWN, JSON.stringify(drawnMap));
-    localStorage.setItem(LS_COUNTS, JSON.stringify(countsMap));
-    localStorage.setItem(LS_COUNT, String(drawCount));
-  }, [drawnMap, countsMap, drawCount]);
+    if (!bgmRef.current) return;
+    bgmRef.current.volume = bgmVolume;
+    if (bgmVolume <= 0) {
+      bgmRef.current.pause();
+      setBgmState("off");
+    }
+  }, [bgmVolume]);
 
   useEffect(() => {
-    localStorage.setItem(LS_CANVAS, JSON.stringify(canvasItems));
-    localStorage.setItem("materials", String(materials));
-  }, [canvasItems, materials]);
+    const audio = bgmRef.current;
+    if (!audio) return;
 
+    if (!isBgmEnabled) {
+      audio.pause();
+      setBgmState("off");
+      return;
+    }
 
+    resumeBgm();
+  }, [isBgmEnabled]);
 
   useEffect(() => {
-    if (mode !== "canvas") return;
-    const onKey = (e) => {
-      if (e.key === "Backspace" || e.key === "Delete") {
-        if (!selectedId) return;
-        e.preventDefault();
-        setCanvasItems((prev) => prev.filter((c) => c.id !== selectedId));
+    if (!selectedId) return;
+    if (!placedStamps.some((stamp) => stamp.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [placedStamps, selectedId]);
+
+  useEffect(() => {
+    const handlePointerMove = (event) => {
+      const drag = dragRef.current;
+      const board = boardRef.current;
+      if (!drag || !board) return;
+
+      const rect = board.getBoundingClientRect();
+      const x = ((event.clientX - rect.left - drag.offsetX) / rect.width) * 100;
+      const y = ((event.clientY - rect.top - drag.offsetY) / rect.height) * 100;
+
+      setPlacedStamps((current) =>
+        current.map((stamp) =>
+          stamp.id === drag.id
+            ? {
+                ...stamp,
+                x: clampNum(x, 2, 98),
+                y: clampNum(y, 4, 96),
+              }
+            : stamp,
+        ),
+      );
+    };
+
+    const stopDragging = () => {
+      dragRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopDragging);
+    window.addEventListener("pointercancel", stopDragging);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopDragging);
+      window.removeEventListener("pointercancel", stopDragging);
+    };
+  }, []);
+
+  const filteredCatalog = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return STAMP_CATALOG;
+
+    return STAMP_CATALOG.filter(
+      (stamp) =>
+        stamp.name.toLowerCase().includes(keyword) || stamp.file.toLowerCase().includes(keyword),
+    );
+  }, [search]);
+
+  const orderedStamps = useMemo(() => [...placedStamps].sort(sortByZ), [placedStamps]);
+
+  const selectedStamp = selectedId ? placedStamps.find((stamp) => stamp.id === selectedId) || null : null;
+  const armedStamp = armedStampId ? STAMP_CATALOG.find((stamp) => stamp.id === armedStampId) || null : null;
+  const currentBackground =
+    BACKGROUNDS.find((background) => background.id === backgroundId) || BACKGROUNDS[0];
+  const currentBackgroundLabel =
+    backgroundId === CUSTOM_BACKGROUND_ID && customBackground?.name
+      ? customBackground.name
+      : currentBackground.label;
+  const currentBackgroundNote =
+    backgroundId === CUSTOM_BACKGROUND_ID && customBackground?.src
+      ? "アップロードした画像を背景に使用中"
+      : currentBackground.note;
+
+  const bgmStatusLabel =
+    !isBgmEnabled
+      ? "停止中"
+      : bgmState === "playing"
+        ? "再生中"
+        : bgmState === "error"
+          ? "読み込み失敗"
+          : bgmState === "waiting"
+            ? "再生待機"
+            : "準備中";
+
+  const boardClassName =
+    backgroundId === CUSTOM_BACKGROUND_ID && customBackground?.src
+      ? "board has-image-bg"
+      : `board theme-${backgroundId}`;
+
+  const boardStyle =
+    backgroundId === CUSTOM_BACKGROUND_ID && customBackground?.src
+      ? {
+          backgroundImage: `linear-gradient(rgba(255,255,255,0.08), rgba(255,255,255,0.08)), url("${customBackground.src}")`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }
+      : undefined;
+
+  const placeStampAt = (catalogItem, x, y) => {
+    const nextId = createId();
+    const nextStamp = {
+      id: nextId,
+      stampId: catalogItem.id,
+      name: catalogItem.name,
+      img: catalogItem.img,
+      x: clampNum(x, 2, 98),
+      y: clampNum(y, 4, 96),
+      size: DEFAULT_SIZE,
+      rotation: 0,
+      opacity: 1,
+      flipX: false,
+      z: nextZRef.current++,
+    };
+
+    setPlacedStamps((current) => [...current, nextStamp]);
+    setSelectedId(nextId);
+    playSe("place", { volumeMultiplier: 0.9 });
+  };
+
+  const updateStamp = (id, patch) => {
+    setPlacedStamps((current) =>
+      current.map((stamp) => (stamp.id === id ? { ...stamp, ...patch } : stamp)),
+    );
+  };
+
+  const removeStampById = (id, options = {}) => {
+    setPlacedStamps((current) => current.filter((stamp) => stamp.id !== id));
+    if (selectedId === id) setSelectedId(null);
+    if (!options.silent) {
+      playSe("remove", { volumeMultiplier: 0.9 });
+    }
+  };
+
+  const duplicateStampById = (id, options = {}) => {
+    const source = placedStamps.find((stamp) => stamp.id === id);
+    if (!source) return;
+
+    const nextId = createId();
+    const duplicated = {
+      ...source,
+      id: nextId,
+      x: clampNum(source.x + 4, 2, 98),
+      y: clampNum(source.y + 4, 4, 96),
+      z: nextZRef.current++,
+    };
+
+    setPlacedStamps((current) => [...current, duplicated]);
+    setSelectedId(nextId);
+    if (!options.silent) {
+      playSe("duplicate");
+    }
+  };
+
+  const bringToFront = (id) => {
+    updateStamp(id, { z: nextZRef.current++ });
+  };
+
+  const sendToBack = (id) => {
+    const minZ = placedStamps.reduce((min, stamp) => Math.min(min, asNumber(stamp.z, 0)), 0);
+    updateStamp(id, { z: minZ - 1 });
+  };
+
+  const applyBackgroundSelection = (id) => {
+    if (id === CUSTOM_BACKGROUND_ID && !customBackground?.src) return;
+    setBackgroundId(id);
+    playSe("background", { volumeMultiplier: 0.75 });
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const active = document.activeElement;
+      const isTyping =
+        active?.tagName === "INPUT" ||
+        active?.tagName === "TEXTAREA" ||
+        active?.tagName === "SELECT" ||
+        active?.isContentEditable;
+
+      if (isTyping) return;
+
+      if ((event.key === "Delete" || event.key === "Backspace") && selectedId) {
+        event.preventDefault();
+        removeStampById(selectedId);
+        return;
+      }
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "d" && selectedId) {
+        event.preventDefault();
+        duplicateStampById(selectedId);
+        return;
+      }
+
+      if (event.key === "Escape") {
         setSelectedId(null);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [mode, selectedId]);
 
-  useEffect(() => {
-    if (!lastDrawnName) return;
-    const raf = requestAnimationFrame(() => scrollToHistory(lastDrawnName));
-    return () => cancelAnimationFrame(raf);
-  }, [lastDrawnName, drawnMap]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [placedStamps, selectedId]);
 
-  useEffect(() => {
-    if (!shakeName) return;
-    const timer = setTimeout(() => setShakeName(null), 350);
-    return () => clearTimeout(timer);
-  }, [shakeName]);
+  const handleBoardClick = (event) => {
+    if (event.target !== event.currentTarget) return;
 
-  useEffect(() => {
-    if (result?.type === "item") {
-      const isNew = Boolean(result.isNew);
-      const delay = isNew ? DRAW_SETTLE_MS_NEW : DRAW_SETTLE_MS_DUP;
-      if (!isNew) {
-        setShowAnother(true);
-      } else {
-        setShowAnother(false);
-      }
-      const timer = setTimeout(() => setShowAnother(true), delay);
-      return () => clearTimeout(timer);
-    }
-    setShowAnother(false);
-  }, [result, drawPulse]);
-  // キャンバスの縦横比を保持（バトル表示の中央正方形クロップ用）
-  useEffect(() => {
-    const updateAspect = () => {
-      const el = canvasRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      if (rect.width && rect.height) setCanvasAspect(rect.width / rect.height);
-    };
-    updateAspect();
-    window.addEventListener("resize", updateAspect);
-    return () => window.removeEventListener("resize", updateAspect);
-  }, [mode, canvasItems.length]);
-
-  useEffect(() => {
-    if (enemyPlaced || enemyDying || currentEnemy) return;
-    spawnEnemy(floor);
-  }, [enemyPlaced, enemyDying, currentEnemy, floor]);
-
-    const scrollToHistory = (name) => {
-    const body = catalogRef.current || dexBodyRef.current;
-    const list = historyRef.current;
-    if (!body || !list) return;
-    const card = list.querySelector(`[data-name="${name}"]`);
-    if (!card) return;
-    const top = card.offsetTop - 8;
-    body.scrollTo({ top, behavior: "smooth" });
-  };
-
-  const handleDrawCore = () => {
-    setMode("normal");
-    setActiveTab("catalog");
-    setPreviewPos(null);
-    setPreviewItem(null);
-    setSelectedId(null);
-    setIsDragging(false);
-    setResult((prev) => (prev?.type === "item" ? prev : { type: "message" }));
-  };
-
-  const handleGacha = () => {
-    setMode("normal");
-    setPreviewPos(null);
-    setPreviewItem(null);
-    setSelectedId(null);
-    setIsDragging(false);
-    setMaterials((m) => {
-      if (m < MATERIAL_COST) {
-        playSound("se5", 0.75);
-        return m;
-      }
-      playSound("se6", 0.8);
-      const isFirstDraw = drawCount === 0;
-      const firstItem = ITEMS.find((i) => i.key.startsWith("00"));
-      const item = isFirstDraw && firstItem ? firstItem : randItem();
-      const now = Date.now();
-      const isNew = !drawnMap[item.key];
-      setDrawnMap((prev) => ({ ...prev, [item.key]: prev[item.key] || now }));
-      setCountsMap((prev) => ({ ...prev, [item.key]: (prev[item.key] || 0) + 1 }));
-      const nextCount = drawCount + 1;
-      setDrawCount(nextCount);
-      setResult({ type: "item", item, at: now, count: nextCount, isNew });
-      setLastDrawnName(item.key);
-      setDrawPulse((p) => p + 1);
-      setShowAnother(!isNew); // 重複カードは即座に左寄せ＋再抽選準備
-      return m - MATERIAL_COST;
-    });
-  };;
-
-  const handleGachaMulti = (times = MULTI_DRAW_COUNT) => {
-    const need = MATERIAL_COST * times;
-    if (materials < need) {
-      playSound("se5", 0.8);
-      return;
-    }
-    // まとめて回す: 時間差で単発を複数呼び出し（最終結果のみ画面に残る）
-    for (let i = 0; i < times; i += 1) {
-      setTimeout(() => handleGacha(), i * 60);
-    }
-  };
-
-  const handleUnlockAll = () => {
-    const now = Date.now();
-    const allDrawn = {};
-    const allCounts = {};
-    ITEMS.forEach((item) => {
-      allDrawn[item.key] = now;
-      allCounts[item.key] = 1;
-    });
-    setMode("normal");
-    setPreviewPos(null);
-    setPreviewItem(null);
-    setSelectedId(null);
-    setIsDragging(false);
-    setResult({ type: "message" });
-    setDrawnMap(allDrawn);
-    setCountsMap(allCounts);
-    setDrawCount(ITEMS.length);
-    setLastDrawnName(null);
-  };
-
-  const handleResetData = () => {
-    clearBattleTimers();
-    localStorage.removeItem(LS_DRAWN);
-    localStorage.removeItem(LS_COUNT);
-    localStorage.removeItem(LS_COUNTS);
-    localStorage.removeItem(LS_CANVAS);
-    localStorage.removeItem("materials");
-    setDrawnMap({});
-    setCountsMap({});
-    setDrawCount(0);
-    setCanvasItems([]);
-    setMaterials(INITIAL_MATERIAL);
-    setResult({ type: "message" });
-    setMode("normal");
-    setActiveTab("catalog");
-    setPreviewPos(null);
-    setPreviewItem(null);
-    setSelectedId(null);
-    setIsDragging(false);
-    setShowAnother(false);
-    setLastDrawnName(null);
-    setHandCards(Array(5).fill(null));
-    setSkillNotes([]);
-    setHumanGauge(0);
-    setHumanPoints(0);
-    humanGaugeRef.current = 0;
-    prevHumanPointsRef.current = 0;
-    setInBattlePhase(false);
-    setEnemyPlaced(false);
-    setEnemyDying(false);
-    setEnemyHP(100);
-    setEnemyMaxHP(100);
-    setEnemyHpLag(100);
-    enemyHPRef.current = 100;
-    setAllyHP(0);
-    setAllyMaxHP(0);
-    setAllyHpLag(0);
-    allyHPRef.current = 0;
-    setEnemyAtk(10);
-    setEnemyAct(10);
-    setEnemyDef(20);
-    setEnemyProgress(0);
-    setAllyProgress(0);
-    setEnemyRoster([]);
-    setCurrentEnemy(null);
-    setFloor(1);
-    setGameOver({ visible: false, floor: 1 });
-    setConfirmExit(false);
-    setPendingNav(null);
-  };
-
-    const handleNavWithConfirm = (target) => {
-    if (target === "draw") handleDrawCore();
-    else if (target === "assemble") handleAssembleCore();
-  };
-
-const handleAssembleCore = () => {
-    playSound("se6", 0.6);
-    setMode("canvas");
-    setActiveTab("owned");
-    setPreviewPos(null);
-    setPreviewItem(null);
-    setSelectedId(null);
-    setIsDragging(false);
-    dragOffsetRef.current = null;
-    resizingRef.current = false;
-    resizeStartRef.current = null;
-    setResult({ type: "canvas" });
-  };
-
-  const appendBattleNote = (lines) => {
-    const note = {
-      id: `${Date.now()}-${Math.random()}`,
-      lines: Array.isArray(lines) ? lines : [lines],
-    };
-    setSkillNotes((prev) => [note, ...prev].slice(0, 3));
-  };
-
-  const padHand = (arr) => {
-    const next = [...arr];
-    while (next.length < 5) next.push(null);
-    return next;
-  };
-
-  const countHandSkills = (arr) => {
-    return arr.reduce((acc, card) => {
-      const skillName = card?.skill?.name;
-      if (!skillName) return acc;
-      acc[skillName] = (acc[skillName] || 0) + 1;
-      return acc;
-    }, {});
-  };
-
-  const handleSkillPlay = (card, index) => {
-    if (mode !== "battle" || !card) return;
-    const cost = card?.skill?.cost ?? 1;
-    if (humanPoints < cost) { playSound("se5", 0.7); return; }
-    setHumanPoints((p) => Math.max(0, p - cost));
-    const dmg = calcDamageTaken(Math.max(0, Math.floor(canvasTotals.red * 2)), enemyDef);
-    const note = {
-      id: Date.now(),
-      lines: [
-        `${card.name} の`,
-        `${card.skill?.name || "不明スキル"}！`,
-        `敵に ${dmg} ダメージ`,
-      ],
-    };
-    setSkillNotes((prev) => {
-      const next = [note, ...prev];
-      return next.slice(0, 2);
-    });
-    playSound("se4", 0.7);
-    setHandCards((prev) => {
-      const next = padHand(prev);
-      next[index] = null;
-      return next;
-    });
-    setEnemyHP((hp) => {
-      if (hp <= 0) return hp;
-      const next = Math.max(0, hp - dmg);
-      setEnemyLastDmg(dmg);
-      setEnemyHitPulse((v) => v + 1);
-      if (next <= 0) {
-        handleEnemyDefeat();
-      }
-      return next;
-    });
-  };
-
-  const handleEnemyClick = () => {
-    if (mode !== "battle" || !enemyPlaced || enemyDying) return;
-    if (enemyHPRef.current <= 0) return;
-    const isCrit = Math.random() < battleStats.critChance;
-    const rawDamage = Math.max(
-      1,
-      Math.round(
-        battleStats.clickDamage * (isCrit ? battleStats.critMultiplier : 1)
-      )
-    );
-    const effectiveDef = Math.max(1, enemyDef - battleStats.defenseBreak);
-    const dmg = Math.max(1, calcDamageTaken(rawDamage, effectiveDef));
-    let applied = false;
-    let defeated = false;
-    setEnemyHP((hp) => {
-      if (hp <= 0) return hp;
-      applied = true;
-      const next = Math.max(0, hp - dmg);
-      defeated = next <= 0;
-      return next;
-    });
-    if (!applied) return;
-    setEnemyLastDmg(dmg);
-    setEnemyHitPulse((v) => v + 1);
-    if (isCrit) {
-      appendBattleNote([
-        "クリティカル！",
-        `クリックで ${dmg} ダメージ`,
-      ]);
-      playSound("se4", 0.35);
-    }
-    if (defeated) handleEnemyDefeat();
-  };
-
-  
-  const handleDraw = () => handleNavWithConfirm("draw");
-  const handleAssemble = () => handleNavWithConfirm("assemble");
-
-const handleBattle = () => {
-    playSound("se6", 0.7);
-    setMode("battle");
-    setPreviewPos(null);
-    setPreviewItem(null);
-    setSelectedId(null);
-    setIsDragging(false);
-    resizingRef.current = false;
-    resizeStartRef.current = null;
-    setResult({ type: "battle" });
-    if (!enemyPlaced && !enemyDying && !currentEnemy) {
-      spawnEnemy(floor);
-    }
-  };
-
-  const handleHoloDraw = () => {
-    if (mode !== "battle") return;
-    if (humanPoints < 1) { playSound("se5", 0.7); return; }
-    const slotIdx = padHand(handCards).findIndex((c) => !c);
-    if (slotIdx === -1) { playSound("se5", 0.7); return; }
-    const withSkill = canvasItems
-      .map((c) => lookupItem(c.name))
-      .filter((m) => m?.skill?.name);
-    if (!withSkill.length) { playSound("se5", 0.7); return; }
-
-    const canvasSkillCounts = withSkill.reduce((acc, meta) => {
-      const skillName = meta.skill.name;
-      acc[skillName] = (acc[skillName] || 0) + 1;
-      return acc;
-    }, {});
-
-    let added = false;
-    setHandCards((prev) => {
-      const next = padHand(prev);
-      const emptyIdx = next.findIndex((c) => !c);
-      if (emptyIdx === -1) return next;
-
-      const handSkillCounts = countHandSkills(next);
-      const eligible = withSkill.filter((meta) => {
-        const skillName = meta.skill.name;
-        const allowed = canvasSkillCounts[skillName] || 0;
-        const inHand = handSkillCounts[skillName] || 0;
-        return allowed > inHand;
-      });
-      if (!eligible.length) return next;
-
-      const pick = eligible[Math.floor(Math.random() * eligible.length)];
-      next[emptyIdx] = { name: pick.name, skill: pick.skill };
-      added = true;
-      return next;
-    });
-    if (added) {
-      setHumanPoints((p) => Math.max(0, p - 1));
-    } else {
-      playSound("se5", 0.7);
-    }
-  };
-
-  const ownedItems = useMemo(() => ITEMS.filter((i) => countsMap[i.key]), [countsMap]);
-  const placedCountMap = useMemo(() => {
-    return canvasItems.reduce((acc, c) => {
-      const key = c.name;
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {});
-  }, [canvasItems]);
-  const availableCount = (key) => {
-    const owned = countsMap[key] || 0;
-    const placed = placedCountMap[key] || 0;
-    return Math.max(0, owned - placed);
-  };
-  const hoveredIdx = ownedItems.findIndex((i) => i.key === ownedHover);
-
-  const CANVAS_MARGIN_X = 12;  // 横方向の余白％（飛び出し防止を強め）
-  const CANVAS_MARGIN_Y = 29;  // 縦方向の余白％（飛び出し防止を強め）
-  const clampX = (v) => Math.min(100 - CANVAS_MARGIN_X, Math.max(CANVAS_MARGIN_X, v));
-  const clampY = (v) => Math.min(100 - CANVAS_MARGIN_Y, Math.max(CANVAS_MARGIN_Y, v));
-  const getHitStack = (clientX, clientY) => {
-    const els = document.elementsFromPoint(clientX, clientY) || [];
-    const ids = [];
-    els.forEach((el) => {
-      if (el?.classList?.contains("canvas-item")) {
-        const id = el.getAttribute("data-id");
-        if (id && !ids.includes(id)) ids.push(id);
-      }
-    });
-    return ids;
-  };
-  const cycleSelectFromHits = (hitIds) => {
-    if (!hitIds.length) return null;
-    const key = hitIds.join("|");
-    const sameStack = hitCycleRef.current.key === key;
-    const nextCount = sameStack ? hitCycleRef.current.count + 1 : 1;
-    hitCycleRef.current = { key, count: nextCount };
-    const current = selectedId && hitIds.includes(selectedId) ? selectedId : hitIds[0];
-    // 3回目ごとに奥へ送る。それまでは最前面を維持。
-    const shouldCycle = nextCount > 0 && nextCount % 3 === 0;
-    const targetIdx = hitIds.indexOf(current);
-    const nextIdx = shouldCycle ? ((targetIdx >= 0 ? targetIdx : -1) + 1) % hitIds.length : (targetIdx >= 0 ? targetIdx : 0);
-    const pick = hitIds[nextIdx];
-    setSelectedId(pick);
-    return pick;
-  };
-  const cycleSelectByName = (name) => {
-    const matches = canvasItems.filter((c) => c.name === name);
-    if (!matches.length) return null;
-    const last = listCycleRef.current[name] ?? -1;
-    const next = (last + 1) % matches.length;
-    listCycleRef.current[name] = next;
-    const pick = matches[next];
-    setSelectedId(pick.id);
-    return pick.id;
-  };
-
-  const addToCanvas = (item, xPerc, yPerc) => {
-    if (mode !== "canvas") return;
-    const itemKey = item.key || item.name;
-    const ownedCount = countsMap[itemKey] || 0;
-    setCanvasItems((prev) => {
-      const meta = lookupItem(item.name) || item;
-      const rarityCost = rarityValue(meta);
-      const currentRarity = computeRaritySum(prev);
-      if (currentRarity + rarityCost > MAX_CANVAS_RARITY) {
-        playSound("se5", 0.75);
-        return prev;
-      }
-      const placedCount = prev.filter((c) => c.name === item.name).length;
-      if (ownedCount <= placedCount) {
-        playSound("se5", 0.75);
-        return prev;
-      }
-      const spanX = 100 - CANVAS_MARGIN_X * 2;
-      const spanY = 100 - CANVAS_MARGIN_Y * 2;
-      const x = xPerc == null ? Math.random() * spanX + CANVAS_MARGIN_X : clampX(xPerc);
-      const y = yPerc == null ? Math.random() * spanY + CANVAS_MARGIN_Y : clampY(yPerc);
-      return [
-        ...prev,
-        {
-          id: `${Date.now()}-${Math.random()}`,
-          name: item.name,
-          img: item.img,
-          x,
-          y,
-          scale: 1,
-        },
-      ];
-    });
-  };
-
-  const handleDragStart = (item, e) => {
-    if (mode !== "canvas" || isMobile) return;
-    dragItemRef.current = item;
-    setPreviewItem(item);
-    if (e && e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "copy";
-      e.dataTransfer.dropEffect = "copy";
-      try {
-        e.dataTransfer.setData("text/plain", item.name);
-      } catch (_) {}
-    }
-  };
-
-  const handleDragEnd = () => {
-    dragItemRef.current = null;
-    setPreviewPos(null);
-    setPreviewItem(null);
-  };
-
-  const handleCanvasDragOver = (e) => {
-    if (mode !== "canvas") return;
-    e.preventDefault();
-    const item = dragItemRef.current;
-    if (!item) return;
-    const board = canvasRef.current;
-    if (!board) return;
-    const rect = board.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    const halfX = (260 / rect.width) * 50;
-    const halfY = (260 / rect.height) * 50;
-    const marginX = Math.max(CANVAS_MARGIN_X, halfX);
-    const marginY = Math.max(CANVAS_MARGIN_Y, halfY);
-    const cx = Math.min(100 - marginX, Math.max(marginX, x));
-    const cy = Math.min(100 - marginY, Math.max(marginY, y));
-    setPreviewPos({ x: cx, y: cy });
-    setPreviewItem(item);
-};
-
-  const handleCanvasDragLeave = () => {
-    if (mode !== "canvas") return;
-    setPreviewPos(null);
-    setPreviewItem(null);
-  };
-
-  const handleCanvasDrop = (e) => {
-    if (mode !== "canvas") return;
-    const item = dragItemRef.current;
-    if (!item) return;
-    const board = canvasRef.current;
-    if (!board) return;
-    e.preventDefault();
-    const rect = board.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    const halfX = (260 / rect.width) * 50;
-    const halfY = (260 / rect.height) * 50;
-    const marginX = Math.max(CANVAS_MARGIN_X, halfX);
-    const marginY = Math.max(CANVAS_MARGIN_Y, halfY);
-    const cx = Math.min(100 - marginX, Math.max(marginX, x));
-    const cy = Math.min(100 - marginY, Math.max(marginY, y));
-    addToCanvas(item, cx, cy);
-    setPreviewPos(null);
-    setPreviewItem(null);
-    dragItemRef.current = null;
-};
-
-  const handleCanvasItemMouseDown = (item, e) => {
-    if (mode !== "canvas") return;
-    e.preventDefault();
-    e.stopPropagation();
-    const board = canvasRef.current;
-    if (!board) return;
-    const hits = getHitStack(e.clientX, e.clientY);
-    const targetId = hits.length ? cycleSelectFromHits(hits) : item.id;
-    const targetItem = canvasItems.find((c) => c.id === targetId) || item;
-    if (isMobile) {
-      setSelectedId(targetItem.id);
-      return;
-    }
-    const rect = board.getBoundingClientRect();
-    const pointerX = ((e.clientX - rect.left) / rect.width) * 100;
-    const pointerY = ((e.clientY - rect.top) / rect.height) * 100;
-    const targetEl = targetId ? document.querySelector(`[data-id="${targetId}"]`) : null;
-    const itemRect = targetEl?.getBoundingClientRect() || e.currentTarget.getBoundingClientRect();
-    dragOffsetRef.current = {
-      offsetX: pointerX - targetItem.x,
-      offsetY: pointerY - targetItem.y,
-      halfW: (itemRect.width / rect.width) * 50,
-      halfH: (itemRect.height / rect.height) * 50,
-    };
-    window.addEventListener("mousemove", handleCanvasMouseMove);
-    window.addEventListener("mouseup", handleCanvasMouseUp);
-    setSelectedId(targetItem.id);
-    setIsDragging(true);
-  };
-
-  const startResize = (item, e) => {
-    if (mode !== "canvas") return;
-    e.preventDefault();
-    e.stopPropagation();
-    const board = canvasRef.current;
-    if (!board) return;
-    setSelectedId(item.id);
-    resizingRef.current = true;
-    const rect = board.getBoundingClientRect();
-    resizeStartRef.current = {
-      id: item.id,
-      startX: e.clientX,
-      startY: e.clientY,
-      startScale: item.scale || 1,
-      boardWidth: rect.width,
-      boardHeight: rect.height,
-    };
-  };
-
-  const handleCanvasMouseMove = (e) => {
-    if (mode !== "canvas" || (!isDragging && !resizingRef.current) || !selectedId) return;
-    const board = canvasRef.current;
-    if (!board) return;
-
-    if (resizingRef.current && resizeStartRef.current?.id === selectedId) {
-      const { startX, startY, startScale, boardWidth, boardHeight } = resizeStartRef.current;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      const base = Math.max(boardWidth || 1, boardHeight || 1);
-      const delta = Math.max(Math.abs(dx), Math.abs(dy)) * Math.sign(Math.max(dx, dy)) / base;
-      const nextScale = Math.min(3, Math.max(0.2, startScale + delta));
-      setCanvasItems((prev) => prev.map((c) => (c.id === selectedId ? { ...c, scale: nextScale } : c)));
-      return;
-    }
-
-    const offset = dragOffsetRef.current;
-    const rect = board.getBoundingClientRect();
-    if (!offset || !rect) return;
-    const pointerX = ((e.clientX - rect.left) / rect.width) * 100;
-    const pointerY = ((e.clientY - rect.top) / rect.height) * 100;
-    const marginX = Math.max(CANVAS_MARGIN_X, offset.halfW ?? CANVAS_MARGIN_X);
-    const marginY = Math.max(CANVAS_MARGIN_Y, offset.halfH ?? CANVAS_MARGIN_Y);
-    const nx = Math.min(100 - marginX, Math.max(marginX, pointerX - offset.offsetX));
-    const ny = Math.min(100 - marginY, Math.max(marginY, pointerY - offset.offsetY));
-    setCanvasItems((prev) => prev.map((c) => (c.id === selectedId ? { ...c, x: nx, y: ny } : c)));
-  };
-
-  const handleCanvasMouseUp = () => {
-    if (mode !== "canvas") return;
-    setIsDragging(false);
-    dragOffsetRef.current = null;
-    resizingRef.current = false;
-    resizeStartRef.current = null;
-    window.removeEventListener("mousemove", handleCanvasMouseMove);
-    window.removeEventListener("mouseup", handleCanvasMouseUp);
-  };
-
-  const handleCanvasBackgroundClick = (e) => {
-    if (mode !== "canvas") return;
-    if (e.target === e.currentTarget) {
+    resumeBgm();
+    if (!armedStamp) {
       setSelectedId(null);
+      return;
     }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    placeStampAt(armedStamp, x, y);
   };
 
-  const handleDeleteSelected = () => {
-    if (!selectedId) return;
-    setCanvasItems((prev) => prev.filter((c) => c.id !== selectedId));
-    setSelectedId(null);
+  const handleStartDrag = (event, stamp) => {
+    event.preventDefault();
+    event.stopPropagation();
+    resumeBgm();
+
+    const board = boardRef.current;
+    if (!board) return;
+
+    const rect = board.getBoundingClientRect();
+    const stampX = (stamp.x / 100) * rect.width;
+    const stampY = (stamp.y / 100) * rect.height;
+
+    dragRef.current = {
+      id: stamp.id,
+      offsetX: event.clientX - rect.left - stampX,
+      offsetY: event.clientY - rect.top - stampY,
+    };
+
+    bringToFront(stamp.id);
+    setSelectedId(stamp.id);
   };
 
   const handleClearCanvas = () => {
-    setCanvasItems([]);
+    resumeBgm();
+    if (!placedStamps.length) return;
+    if (!window.confirm("キャンバス上のスタンプをすべて消しますか？")) return;
+
+    setPlacedStamps([]);
     setSelectedId(null);
-    setPreviewPos(null);
-    setPreviewItem(null);
+    playSe("remove");
   };
 
-  const historyList = ITEMS.map((item) => {
-    const got = Boolean(drawnMap[item.key]);
-    const displayName = got ? item.name : "???";
-    return (
-      <div
-        key={item.key}
-        className={`card ${got ? "got" : "locked"} history-card ${shakeName === item.key ? "shake" : ""}`}
-        data-name={got ? item.key : undefined}
-        onMouseEnter={() => playSound(got ? "se1" : "se2", 0.45)}
-        onClick={() => {
-          if (got) {
-            playSound("se4", 0.65);
-            setModalImg(item.img);
-          } else {
-            playSound("se5", 0.75);
-            setShakeName(null);
-            setTimeout(() => setShakeName(item.key), 0);
-          }
-        }}
-      >
-        <div className="history-row">
-          <div className="thumb small">
-            {got ? <img src={item.img} alt={item.name} loading="lazy" /> : null}
-          </div>
-          <div>
-            <div className="item" style={{ margin: "0 0 4px" }}>{displayName}</div>
-            <div className="small">
-              <Badge got={got} />
-            </div>
-          </div>
-          <div className="count-badge">所持数: {availableCount(item.key)}</div>
-        </div>
-      </div>
-    );
-  });
+  const handleCustomBackgroundUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
 
-  function handleOwnedMouseMove(e) {
-    const card = e.target.closest?.(".stack-card");
-    if (card && ownedRef.current && ownedRef.current.contains(card)) {
-      const name = card.getAttribute("data-name");
-      setOwnedHover(name || null);
+    if (!file.type.startsWith("image/")) {
+      window.alert("画像ファイルを選んでください。");
       return;
     }
-    setOwnedHover(null);
-  }
 
-  function handleOwnedCardLeave(e) {
-    const next = e.relatedTarget;
-    if (next && (next.closest?.(".stack-card") || (ownedRef.current && ownedRef.current.contains(next)))) {
-      return;
+    resumeBgm();
+    setIsPreparingBackground(true);
+
+    try {
+      const prepared = await prepareUploadedBackground(file);
+      setCustomBackground(prepared);
+      setBackgroundId(CUSTOM_BACKGROUND_ID);
+      playSe("background");
+    } catch (error) {
+      console.error(error);
+      window.alert("背景画像の読み込みに失敗しました。別の画像で試してください。");
+    } finally {
+      setIsPreparingBackground(false);
     }
-    setOwnedHover(null);
-  }
-
-  const ownedStack = ownedItems.map((item, idx) => {
-    const remaining = availableCount(item.key);
-    const depleted = remaining <= 0;
-    const hasPlaced = canvasItems.some((c) => c.name === item.name);
-    const jitterX = ((idx * 17) % 10) - 5;
-    const jitterY = ((idx * 13) % 12) - 6;
-    const baseLeft = 30 + idx * 64 + jitterX;
-    const top = 54 + jitterY;
-    const diff = hoveredIdx >= 0 ? idx - hoveredIdx : 0;
-    const offset = hoveredIdx >= 0 ? diff * 40 : 0;
-    const lift = diff === 0 && hoveredIdx >= 0 ? 40 : 0;
-    const baseRot = ((idx * 9) % 8) - 4;
-    const rot = hoveredIdx >= 0 ? (diff === 0 ? 0 : baseRot) : baseRot;
-    const scale = hoveredIdx >= 0 ? (diff === 0 ? 1.02 : 0.94) : 1;
-    const z = hoveredIdx >= 0 ? (diff === 0 ? 999 : 900 - Math.abs(diff)) : idx;
-    const topWithDeplete = top - lift + (depleted ? 12 : 0);
-    return (
-      <div
-        key={item.key}
-        className={`stack-card ${depleted ? "depleted" : ""}`}
-        style={{ left: baseLeft + offset, top: topWithDeplete, zIndex: z, transform: `rotate(${rot}deg) scale(${scale})`, cursor: mode === "canvas" ? (depleted ? "not-allowed" : "grab") : "default" }}
-        data-name={item.key}
-        draggable={mode === "canvas" && !depleted}
-        onMouseEnter={() => { setSelectedId(null); setOwnedHover(item.key); }}
-        onMouseLeave={handleOwnedCardLeave}
-        onDragStart={(e) => handleDragStart(item, e)}
-        onDragEnd={handleDragEnd}
-        onClick={() => {
-          if (mode === "canvas") {
-            const selected = cycleSelectByName(item.name);
-            if (selected) {
-              playSound("se4", 0.55);
-              return;
-            }
-            if (!depleted) {
-              addToCanvas(item);
-              playSound("se4", 0.65);
-            } else {
-              playSound("se5", 0.7);
-            }
-          }
-        }}
-      >
-        <img src={item.img} alt={item.name} draggable={false} />
-        <div className="count-badge" style={{ right: 8, bottom: 8 }}>
-          x{remaining}
-        </div>
-      </div>
-    );
-  });
-
-  const hoveredName = ownedHover ? (ITEMS.find((i) => i.key === ownedHover)?.name || "") : "";
-  const ownedTitle = selectedId ? (canvasItems.find((c) => c.id === selectedId)?.name || "") : hoveredName;
-  const lookupStats = (keyOrName) => ITEMS.find((i) => i.key === keyOrName || i.name === keyOrName)?.stats;
-  const lookupItem = (keyOrName) => ITEMS.find((i) => i.key === keyOrName || i.name === keyOrName);
-  const ownedStats = selectedId ? lookupStats(canvasItems.find((c) => c.id === selectedId)?.name) : lookupStats(ownedHover);
-  const ownedMeta = selectedId ? lookupItem(canvasItems.find((c) => c.id === selectedId)?.name) : lookupItem(ownedHover);
-  const rarityValue = (itemMeta) => {
-    if (!itemMeta) return 1;
-    const r = itemMeta.rarity;
-    if (!r) return 1;
-    if (typeof r === "number" && Number.isFinite(r)) return Math.max(1, r);
-    const starCount = String(r).match(/☆/g)?.length;
-    if (starCount && starCount > 0) return starCount;
-    if (r === "??") return 2;
-    const num = parseInt(String(r).replace(/\D/g, ""), 10);
-    if (!Number.isNaN(num)) return Math.max(1, num);
-    return 1;
-  };
-  const computeRaritySum = (list) => {
-    return list.reduce((acc, c) => {
-      const meta = lookupItem(c.name) || c;
-      return acc + rarityValue(meta);
-    }, 0);
-  };
-  const canvasRaritySum = useMemo(() => computeRaritySum(canvasItems), [canvasItems]);
-
-  const canvasCountLabel = `☆${String(Math.min(canvasRaritySum, MAX_CANVAS_RARITY)).padStart(2, "0")}/☆${MAX_CANVAS_RARITY}`;
-  const canvasTotals = useMemo(() => {
-    return canvasItems.reduce((acc, c) => {
-      const st = lookupStats(c.name);
-      if (st) {
-        acc.red += st.red || 0;
-        acc.orange += st.orange || 0;
-        acc.green += st.green || 0;
-        acc.cyan += st.cyan || 0;
-        acc.silver += st.silver || 0;
-      }
-      return acc;
-    }, { red: 0, orange: 0, green: 0, cyan: 0, silver: 0 });
-  }, [canvasItems]);
-
-  const hasClickPassive = useMemo(() => canvasItems.some((c) => (c.name || "").startsWith(BASE_00_PREFIX)), [canvasItems]);
-  const battleStats = useMemo(() => {
-    const placedUnits = canvasItems.length;
-    const skillUnits = canvasItems.reduce((acc, c) => acc + (lookupItem(c.name)?.skill ? 1 : 0), 0);
-    const passiveUnits = canvasItems.reduce((acc, c) => acc + (lookupItem(c.name)?.passive ? 1 : 0), 0);
-    const supportLevel = skillUnits + Math.floor(canvasTotals.orange / 60) + Math.floor(canvasTotals.cyan / 80);
-    const clickDamage = Math.max(
-      1,
-      1 + passiveUnits + Math.floor(canvasTotals.orange / 18) + Math.floor(canvasTotals.red / 70)
-    );
-    const autoDamage = Math.max(
-      0,
-      Math.round(canvasTotals.red * 0.38 + placedUnits * 0.75)
-    );
-    const autoInterval = Math.max(
-      240,
-      1700 - canvasTotals.cyan * 8 - placedUnits * 10
-    );
-    const critChance = Math.min(
-      0.5,
-      canvasTotals.silver / 420 + passiveUnits * 0.05
-    );
-    const critMultiplier = 1.6 + Math.min(1.25, canvasTotals.green / 240);
-    const defenseBreak = Math.floor(canvasTotals.silver * 0.42 + canvasTotals.orange * 0.18);
-    const rewardBonus = Math.floor(canvasTotals.green / 95 + canvasTotals.orange / 120 + skillUnits);
-    const skillDamage = placedUnits > 0
-      ? Math.max(
-          clickDamage * 2,
-          Math.round(
-            canvasTotals.red * (1.1 + supportLevel * 0.15) +
-            canvasTotals.orange * 0.45 +
-            canvasTotals.green * 0.25
-          )
-        )
-      : 0;
-    const skillInterval = placedUnits > 0
-      ? Math.max(2400, 8200 - canvasTotals.orange * 15 - canvasTotals.cyan * 12 - supportLevel * 220)
-      : 0;
-    const passiveDps = autoDamage > 0
-      ? Math.round(((1000 / autoInterval) * autoDamage) * 10) / 10
-      : 0;
-
-    return {
-      placedUnits,
-      skillUnits,
-      passiveUnits,
-      supportLevel,
-      clickDamage,
-      autoDamage,
-      autoInterval,
-      critChance,
-      critMultiplier,
-      defenseBreak,
-      rewardBonus,
-      skillDamage,
-      skillInterval,
-      passiveDps,
-    };
-  }, [canvasItems, canvasTotals]);
-
-
-    const squareGuide = (r) => {
-    if (!r) return { top: "0%", bottom: "0%", left: "0%", right: "0%" };
-    if (r > 1) {
-      const m = (1 - 1 / r) * 50;
-      return { top: "0%", bottom: "0%", left: `${m}%`, right: `${m}%` };
-    }
-    if (r < 1) {
-      const m = ((1 / r) - 1) * 50;
-      return { top: `${m}%`, bottom: `${m}%`, left: "0%", right: "0%" };
-    }
-    return { top: "0%", bottom: "0%", left: "0%", right: "0%" };
   };
 
-  const resultNode = (() => {
-    if (mode === "battle") {
-      const r = canvasAspect || 1;
-      let clipStyle = {};
-      let guideStyle = { position: "absolute", inset: "0%" };
-      if (r > 1) {
-        const m = (1 - 1 / r) * 50;
-        clipStyle = { clipPath: `inset(0% ${m}% 0% ${m}%)` };
-        guideStyle = { position: "absolute", top: "0%", bottom: "0%", left: `${m}%`, right: `${m}%` };
-      } else if (r < 1) {
-        const m = ((1 / r) - 1) * 50;
-        clipStyle = { clipPath: `inset(${m}% 0% ${m}% 0%)` };
-        guideStyle = { position: "absolute", top: `${m}%`, bottom: `${m}%`, left: "0%", right: "0%" };
-      }
-      const critPercent = Math.round(battleStats.critChance * 100);
-      const skillCooldownSec = battleStats.skillInterval ? Math.round((battleStats.skillInterval / 1000) * 10) / 10 : 0;
-      const emptyBattleView = canvasItems.length === 0;
-      return (
-        <div className="battle-wrap">
-          <div className={`battle-scene ${emptyBattleView ? "empty-view" : ""}`} onClick={emptyBattleView ? handleAssembleCore : undefined}>
-            {!emptyBattleView && (
-            <div className="battle-panel battle-panel-left">
-              <div className="battle-panel-title">制圧ライン</div>
-              <div className="battle-metric-grid">
-                <div className="battle-metric">
-                  <span>配置数</span>
-                  <strong>{battleStats.placedUnits}</strong>
-                </div>
-                <div className="battle-metric">
-                  <span>クリック</span>
-                  <strong>{battleStats.clickDamage}</strong>
-                </div>
-                <div className="battle-metric">
-                  <span>自動攻撃</span>
-                  <strong>{battleStats.autoDamage}</strong>
-                </div>
-                <div className="battle-metric">
-                  <span>防御貫通</span>
-                  <strong>{battleStats.defenseBreak}</strong>
-                </div>
-              </div>
-              <div className="ally-extra">
-                <div className="ally-action">
-                  <span className="action-label">自動攻撃まで</span>
-                  <div className="action-progress ally"><div className="action-fill" style={{ width: `${Math.min(100, allyProgress)}%` }}></div></div>
-                </div>
-                <div className="ally-action">
-                  <span className="action-label">支援スキル</span>
-                  <div className="action-progress ally"><div className="action-fill enemy" style={{ width: `${Math.min(100, enemyProgress)}%` }}></div></div>
-                </div>
-              </div>
-              <div className="battle-support-copy">
-                <div>秒間火力: 約 {battleStats.passiveDps}</div>
-                <div>クリティカル: {critPercent}%</div>
-                <div>支援レベル: {battleStats.supportLevel}</div>
-                <div>撃破素材: +{battleStats.rewardBonus}</div>
-              </div>
-            </div>
-            )}
-            {!emptyBattleView && (
-            <div className={`enemy-hp hud hud-top-out`}>
-              <div className="floor-label">人類 {floor}人目</div>
-              <div className={`enemy-hp-main ${enemyHitPulse ? "hit" : ""}`}>
-                <div className="enemy-hp-bar">
-                  <div className="enemy-hp-back" style={{ width: `${Math.max(0, enemyHpLag) / (enemyMaxHP || 1) * 100}%` }}></div>
-                  <div className="enemy-hp-fill" style={{ width: `${Math.max(0, enemyHP) / (enemyMaxHP || 1) * 100}%` }}></div>
-                </div>
-                <div className="enemy-hp-text">{enemyHP} / {enemyMaxHP}</div>
-              </div>
-              <div className="battle-subline">
-                防御 {enemyDef} / クリックで破壊
-              </div>
-            </div>
-            )}
-            <div
-              className={`battle-clip ${emptyBattleView ? "empty-view" : "left-offset"} ${allyHitPulse ? "ally-hit-img" : ""}`}
-              style={emptyBattleView ? undefined : clipStyle}
-            >
-              {!emptyBattleView && <div className="battle-guide" style={guideStyle}></div>}
-              {canvasItems.map((c) => (
-                <div
-                  key={c.id}
-                  className="battle-item"
-                  data-id={c.id}
-                  style={{
-                    left: `${c.x}%`,
-                    top: `${c.y}%`,
-                    "--scale": c.scale || 1,
-                  }}
-                >
-                  <img src={c.img} alt={c.name} draggable={false} />
-                </div>
-              ))}
-              {emptyBattleView && (
-                <div className="battle-empty-state" onClick={handleAssembleCore} role="button" tabIndex={0} onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    handleAssembleCore();
-                  }
-                }}>
-                  <div className="battle-empty-title">ロボットがいません</div>
-                  <div className="battle-empty-tip">画面をクリックして組み立てるへ</div>
-                </div>
-              )}
-            </div>
-            {!emptyBattleView && (
-            <div className="battle-panel battle-support-panel">
-              <div className="battle-panel-title">工場支援ログ</div>
-              <div className="battle-note-list">
-                {skillNotes.length ? skillNotes.map((note) => (
-                  <div key={note.id} className="battle-note-item">
-                    {note.lines.map((line, idx) => <div key={`${note.id}-${idx}`}>{line}</div>)}
-                  </div>
-                )) : (
-                  <div className="battle-note-item empty">
-                    クリックでダメージ。配置キャラが自動攻撃を続けます。
-                  </div>
-                )}
-              </div>
-              <div className="battle-support-copy compact">
-                <div>
-                  スキル支援:
-                  {battleStats.skillDamage > 0
-                    ? ` ${skillCooldownSec}秒ごとに ${battleStats.skillDamage} ダメージ`
-                    : " キャラを配置すると起動"}
-                </div>
-                <div>
-                  特殊パッシブ:
-                  {hasClickPassive
-                    ? ` クリック補助ライン稼働中 (+${battleStats.passiveUnits})`
-                    : " 00系キャラでクリック効率アップ"}
-                </div>
-              </div>
-            </div>
-            )}
-          </div>
-        {!emptyBattleView && mode === "battle" && (enemyPlaced || enemyDying || currentEnemy) && (
-          <div
-            className={`battle-enemy ${enemyDying ? "dying" : ""} ${enemyHitPulse ? "hit" : ""} ${enemyPlaced && !enemyDying ? "clickable" : ""}`}
-            onClick={handleEnemyClick}
-            title={enemyPlaced && !enemyDying ? `クリックで ${battleStats.clickDamage} ダメージ` : undefined}
-          >
-            <img src={currentEnemy?.img || "/enemy/人類.png"} alt={currentEnemy?.key || "敵"} />
-            {enemyHitPulse ? (
-              <div key={enemyHitPulse} className="enemy-dmg enemy-dmg-float">-{enemyLastDmg}</div>
-            ) : null}
-          </div>
-        )}
-        </div>
+  const handleRemoveCustomBackground = () => {
+    resumeBgm();
+    if (!customBackground?.src) return;
+    if (!window.confirm("アップロードした背景画像を削除しますか？")) return;
+
+    setCustomBackground(null);
+    if (backgroundId === CUSTOM_BACKGROUND_ID) {
+      setBackgroundId(DEFAULT_BACKGROUND_ID);
+    }
+    playSe("remove", { volumeMultiplier: 0.85 });
+  };
+
+  const handleExport = async () => {
+    if (isExporting) return;
+
+    setIsExporting(true);
+
+    try {
+      const boardWidth = boardRef.current?.clientWidth || EXPORT_WIDTH;
+      const scale = EXPORT_WIDTH / boardWidth;
+      const canvas = document.createElement("canvas");
+      canvas.width = EXPORT_WIDTH;
+      canvas.height = EXPORT_HEIGHT;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas context is unavailable");
+
+      await renderBackgroundToContext(ctx, EXPORT_WIDTH, EXPORT_HEIGHT, backgroundId, customBackground);
+
+      const uniqueSources = [...new Set(placedStamps.map((stamp) => stamp.img))];
+      const loadedImages = await Promise.all(
+        uniqueSources.map(async (src) => [src, await loadImage(src)]),
       );
-    }
+      const imageMap = new Map(loadedImages);
 
-    if (result.type === "canvas") return (
-      <div className="canvas-blank" ref={canvasRef} onDragOver={handleCanvasDragOver} onDrop={handleCanvasDrop} onDragLeave={handleCanvasDragLeave}>
-        <div
-          className="canvas-board"
-          onDragOver={handleCanvasDragOver}
-          onDrop={handleCanvasDrop}
-          onDragLeave={handleCanvasDragLeave}
-          onMouseMove={handleCanvasMouseMove}
-          onMouseUp={handleCanvasMouseUp}
-          onClick={handleCanvasBackgroundClick}
-        >
-          {isMobile && (
-            <div className="canvas-mobile-controls">
-              <div className="mobile-hint">スマホ: タップで貼り付け／選択、下のボタンで削除や全消去</div>
-              <div className="mobile-btn-row">
-                <button className="toggle" onClick={handleDeleteSelected} disabled={!selectedId}>選択を削除</button>
-                <button className="toggle ghost" onClick={handleClearCanvas} disabled={!canvasItems.length}>キャンバス全消去</button>
-              </div>
-            </div>
-          )}
-          {canvasItems.map((c) => (
-            <div
-              key={c.id}
-              className={`canvas-item ${selectedId === c.id ? "selected" : ""}`}
-              data-id={c.id}
-              style={{ left: `${c.x}%`, top: `${c.y}%`, "--scale": c.scale || 1 }}
-              onMouseDown={(e) => handleCanvasItemMouseDown(c, e)}
-            >
-              <img src={c.img} alt={c.name} draggable={false} />
-              <div className="resize-handle" onMouseDown={(e) => startResize(c, e)}></div>
-            </div>
-          ))}
-          {previewPos && previewItem && (
-            <div className="canvas-guide" style={{ left: `${previewPos.x}%`, top: `${previewPos.y}%` }}>
-              <img src={previewItem.img} alt={previewItem.name} draggable={false} />
-            </div>
-          )}
-          {canvasItems.length === 0 && <div className="canvas-hint">所持カード一覧をクリックして貼り付け</div>}
-          <div className="canvas-battle-guide" style={squareGuide(canvasAspect)}></div>
-        </div>
-      </div>
-    );
+      [...placedStamps].sort(sortByZ).forEach((stamp) => {
+        const image = imageMap.get(stamp.img);
+        if (!image) return;
 
-    if (result.type === "item" && result.item) {
-      const drawnMeta = lookupItem(result.item.name) || {};
-      const drawnStats = lookupStats(result.item.name);
-      const isNewDraw = Boolean(result.isNew);
-      const canShowAgain = showAnother;
-      return (
-        <div key={`result-${drawPulse}`} className={`result-grid ${canShowAgain ? "show-action" : ""}`}>
-          <div className={`card with-image got draw-anim ${isNewDraw ? "new-card" : ""}`}>
-            {isNewDraw && <div className="new-ribbon">NEW!</div>}
-            <div className={`thumb ${isNewDraw ? "new-thumb" : ""}`}>
-              <img src={result.item.img} alt={result.item.name} />
-            </div>
-            <div className="draw-info">
-              <div className="item-row">
-                <div className="item">{result.item.name}</div>
-                {isNewDraw && <span className="new-chip">NEW!</span>}
-              </div>
-              <div className="draw-rare-line">{drawnMeta.rarity ? `レアリティ: ${drawnMeta.rarity}` : "レアリティ: 情報なし"}</div>
-              {drawnStats ? (
-                <div className="meta stats-line">
-                  <span>{STAT_LABELS.red}: {drawnStats.red}</span>
-                  <span>{STAT_LABELS.orange}: {drawnStats.orange}</span>
-                  <span>{STAT_LABELS.green}: {drawnStats.green}</span>
-                  <span>{STAT_LABELS.cyan}: {drawnStats.cyan}</span>
-                  <span>{STAT_LABELS.silver}: {drawnStats.silver}</span>
-                </div>
-              ) : (
-                <div className="meta stats-line">ステータス: 情報なし</div>
-              )}
-              <div className="meta skill-line">{drawnMeta.skill ? `滅ぼしスキル: ${drawnMeta.skill.name}（${drawnMeta.skill.desc}）` : "滅ぼしスキル: 情報なし"}</div>
-              <div className="meta passive-line">{drawnMeta.passive ? `パッシブ: ${drawnMeta.passive.name}（${drawnMeta.passive.desc}）` : "パッシブ: 情報なし"}</div>
-              <div className="meta">
-                <span>回数… {result.count} 回</span>
-              <span>時刻… {new Date(result.at).toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
-            <div className="draw-actions-stack">
-              <div className={`draw-action ${canShowAgain ? "visible" : ""}`} aria-hidden={!canShowAgain}>
-                <button className="cta-again" onClick={handleGacha} disabled={materials < MATERIAL_COST}>
-                  <div className="cta-again-main">もう1体</div>
-                  <div className="cta-again-sub">素材-100</div>
-                </button>
-                <div className="cta-note">素材: {materials}</div>
-                {materials < MATERIAL_COST && <div className="cta-note warning">素材が足りません</div>}
-              </div>
-              <div className={`draw-action draw-multi ${canShowAgain ? "visible" : ""}`} aria-hidden={!canShowAgain}>
-                <button
-                  className="cta-again"
-                  onClick={() => handleGachaMulti()}
-                  disabled={materials < MATERIAL_COST * MULTI_DRAW_COUNT}
-                >
-                  <div className="cta-again-main">もう10体</div>
-                  <div className="cta-again-sub">素材-{MATERIAL_COST * MULTI_DRAW_COUNT}</div>
-                </button>
-              </div>
-            </div>
-          </div>
-      );
-    }
-    return (
-      <div className="draw-empty">
-        <button className="cta-large" onClick={handleGacha} disabled={materials < MATERIAL_COST}>
-          <div className="cta-large-title">足立を作る</div>
-          <div className="cta-large-sub">(素材-100)</div>
-        </button>
-        <div className="cta-note">素材: {materials}{materials < MATERIAL_COST ? " / 足りません" : ""}</div>
-      </div>
-    );
-  })();
+        const x = (stamp.x / 100) * EXPORT_WIDTH;
+        const y = (stamp.y / 100) * EXPORT_HEIGHT;
+        const drawWidth = stamp.size * scale;
+        const naturalWidth = image.naturalWidth || image.width || 1;
+        const naturalHeight = image.naturalHeight || image.height || 1;
+        const drawHeight = drawWidth * (naturalHeight / naturalWidth);
 
-
-
-
-  useEffect(() => {
-    if (!enemyPlaced || enemyDying) {
-      clearBattleLoop();
-      setAllyProgress(0);
-      setEnemyProgress(0);
-      return;
-    }
-
-    let autoElapsed = 0;
-    let skillElapsed = 0;
-    let lastTick = Date.now();
-
-    battleTimerRef.current = setInterval(() => {
-      if (enemyHPRef.current <= 0) return;
-      const now = Date.now();
-      const delta = now - lastTick;
-      lastTick = now;
-
-      autoElapsed += delta;
-      while (autoElapsed >= battleStats.autoInterval) {
-        autoElapsed -= battleStats.autoInterval;
-        if (battleStats.autoDamage > 0) {
-          const effectiveDef = Math.max(1, enemyDef - battleStats.defenseBreak);
-          const dmg = Math.max(1, calcDamageTaken(Math.max(1, battleStats.autoDamage), effectiveDef));
-          let applied = false;
-          let defeated = false;
-          setEnemyHP((hp) => {
-            if (hp <= 0) return hp;
-            applied = true;
-            const next = Math.max(0, hp - dmg);
-            defeated = next <= 0;
-            return next;
-          });
-          if (applied) {
-            setEnemyLastDmg(dmg);
-            setEnemyHitPulse((v) => v + 1);
-            if (defeated) {
-              handleEnemyDefeat();
-              return;
-            }
-          }
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate((stamp.rotation * Math.PI) / 180);
+        ctx.scale(stamp.flipX ? -1 : 1, 1);
+        ctx.globalAlpha = stamp.opacity;
+        if (backgroundId !== "plain") {
+          ctx.shadowColor = "rgba(12, 22, 34, 0.24)";
+          ctx.shadowBlur = 28;
+          ctx.shadowOffsetY = 12;
         }
-      }
+        ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+        ctx.restore();
+      });
 
-      if (battleStats.skillInterval > 0) {
-        skillElapsed += delta;
-        while (skillElapsed >= battleStats.skillInterval) {
-          skillElapsed -= battleStats.skillInterval;
-          const effectiveDef = Math.max(1, enemyDef - battleStats.defenseBreak);
-          const dmg = Math.max(1, calcDamageTaken(Math.max(1, battleStats.skillDamage), effectiveDef));
-          let applied = false;
-          let defeated = false;
-          setEnemyHP((hp) => {
-            if (hp <= 0) return hp;
-            applied = true;
-            const next = Math.max(0, hp - dmg);
-            defeated = next <= 0;
-            return next;
-          });
-          if (applied) {
-            setEnemyLastDmg(dmg);
-            setEnemyHitPulse((v) => v + 1);
-            appendBattleNote([
-              "支援スキル起動",
-              `${dmg} ダメージ`,
-            ]);
-            playSound("se4", 0.4);
-            if (defeated) {
-              handleEnemyDefeat();
-              return;
-            }
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((nextBlob) => {
+          if (nextBlob) {
+            resolve(nextBlob);
+            return;
           }
-        }
-      } else {
-        skillElapsed = 0;
-      }
+          reject(new Error("Failed to create PNG blob"));
+        }, "image/png");
+      });
 
-      setAllyProgress(Math.min(100, (autoElapsed / battleStats.autoInterval) * 100));
-      setEnemyProgress(
-        battleStats.skillInterval > 0
-          ? Math.min(100, (skillElapsed / battleStats.skillInterval) * 100)
-          : 0
-      );
-    }, 100);
-
-    return () => {
-      clearBattleLoop();
-      setAllyProgress(0);
-      setEnemyProgress(0);
-    };
-  }, [enemyPlaced, enemyDying, enemyDef, battleStats]);
-
-  const handleDexWheel = (e) => {
-    if (isMobile) return;
-    if (activeTab === "catalog") {
-      const body = catalogRef.current;
-      const speed = Math.min(1, Math.abs(e.deltaY) / 400);
-      const volume = 0.05 + 0.12 * speed;
-      playSound("se7", volume);
-      e.preventDefault();
-      e.stopPropagation();
-      if (body) body.scrollBy({ top: e.deltaY, behavior: "auto" });
-    } else if (activeTab === "owned") {
-      const area = ownedRef.current;
-      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      const speed = Math.min(1, Math.abs(delta) / 400);
-      const volume = 0.05 + 0.12 * speed;
-      playSound("se7", volume);
-      e.preventDefault();
-      e.stopPropagation();
-      if (area) area.scrollBy({ left: delta, behavior: "auto" });
+      const timestamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15);
+      downloadBlob(blob, `robot-kojyo-stamp-${timestamp}.png`);
+      playSe("export");
+    } catch (error) {
+      console.error(error);
+      window.alert("PNG保存に失敗しました。時間を空けてもう一度試してください。");
+    } finally {
+      setIsExporting(false);
     }
+  };
+
+  const handleSliderCommit = () => {
+    playSe("adjust", { volumeMultiplier: 0.45, playbackRate: 1.03 });
+  };
+
+  const handleBgmVolumeChange = (value) => {
+    const nextVolume = clampNum(value, 0, 1);
+    setBgmVolume(nextVolume);
+
+    if (nextVolume <= 0) {
+      setIsBgmEnabled(false);
+      return;
+    }
+
+    setIsBgmEnabled(true);
+  };
+
+  const handleToggleBgm = () => {
+    if (isBgmEnabled && bgmVolume > 0) {
+      lastBgmVolumeRef.current = bgmVolume;
+      setIsBgmEnabled(false);
+      setBgmVolume(0);
+      return;
+    }
+
+    const restoredVolume = lastBgmVolumeRef.current > 0 ? lastBgmVolumeRef.current : DEFAULT_BGM_VOLUME;
+    setBgmVolume(restoredVolume);
+    setIsBgmEnabled(true);
   };
 
   return (
-    <>
-      <audio ref={audioRefs.bgm} src="/bgm/bgm1.mp3" loop />
-      <audio ref={audioRefs.se1} src="/se/se1.mp3" preload="auto" />
-      <audio ref={audioRefs.se2} src="/se/se2.mp3" preload="auto" />
-      <audio ref={audioRefs.se3} src="/se/se3.mp3" preload="auto" />
-      <audio ref={audioRefs.se4} src="/se/se4.mp3" preload="auto" />
-      <audio ref={audioRefs.se5} src="/se/se5.mp3" preload="auto" />
-      <audio ref={audioRefs.se6} src="/se/se6.mp3" preload="auto" />
-      <audio ref={audioRefs.se7} src="/se/se7.mp3" preload="auto" />
-
-      <div className={`wrap ${isMobile ? "mobile" : "desktop"}`}>
-        <div className="title-rig">
-          <h1>ロボットコージョー ガチャ</h1>
-          <div className="device-chip">
-            <span className="dot"></span>
-            <span>{isMobile ? "スマホモード: 横持ち対応・タップで貼り付け/削除" : "PCモード: ドラッグ＆ドロップ＋Deleteキー"}</span>
-          </div>
+    <div className="wrap">
+      <header className="panel hero">
+        <div>
+          <p className="eyebrow">Robot Kojyo</p>
+          <h1>ロボットコージョー</h1>
         </div>
+      </header>
 
-        <div className="machine-shell">
-          <div className="shell-skeleton" aria-hidden="true">
-            <span className="brace brace-a"></span>
-            <span className="brace brace-b"></span>
-            <span className="brace brace-c"></span>
-            <span className="brace brace-d"></span>
+      <main className="workspace">
+        <aside className="panel shelf">
+          <div className="panel-head">
+            <div>
+              <p className="panel-kicker">Stamp Shelf</p>
+              <h2>スタンプ棚</h2>
+            </div>
+            <p className="panel-note">
+              {filteredCatalog.length} / {STAMP_CATALOG.length}
+            </p>
           </div>
-          <div className="side-panel left"><div className="side-window"></div></div>
-          <div className="side-panel right"><div className="side-window"></div></div>
-          <div className="hazard-bar"></div>
 
-            <div className="panel">
-            <div className="panel-struts" aria-hidden="true">
-              <span></span>
-              <span></span>
-              <span></span>
+          <label className="search-label" htmlFor="stamp-search">
+            <span>検索</span>
+            <input
+              id="stamp-search"
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="名前でしぼりこむ"
+            />
+          </label>
+
+          <div className="shelf-help">
+            スタンプを1つ選ぶと、中央のキャンバスをクリックした場所へ何度でも押せます。
+          </div>
+
+          <div className="shelf-grid">
+            {filteredCatalog.map((stamp) => (
+              <button
+                key={stamp.id}
+                type="button"
+                className={`shelf-item ${armedStampId === stamp.id ? "active" : ""}`}
+                onClick={() => {
+                  setArmedStampId((current) => (current === stamp.id ? null : stamp.id));
+                  setSelectedId(null);
+                  playSe("select", { volumeMultiplier: 0.6 });
+                }}
+                aria-pressed={armedStampId === stamp.id}
+              >
+                <span className="shelf-thumb">
+                  <img src={stamp.img} alt={stamp.name} loading="lazy" />
+                </span>
+                <span className="shelf-name">{stamp.name}</span>
+              </button>
+            ))}
+
+            {!filteredCatalog.length ? <div className="empty-card">一致するスタンプがありません。</div> : null}
+          </div>
+        </aside>
+
+        <section className="panel board-panel">
+          <div className="panel-head board-head">
+            <div>
+              <p className="panel-kicker">Canvas</p>
+              <h2>スタンプキャンバス</h2>
             </div>
-            <div className="monitor-bar">
-              <button className={`monitor-btn ${mode === "normal" ? "active" : "inactive"}`} id="drawBtn" onMouseEnter={() => playSound("se3", 0.65)} onClick={handleDraw}>作る</button>
-              <button className={`monitor-btn ${mode === "canvas" ? "active" : "inactive"}`} id="assembleBtn" onClick={handleAssemble}>組み立てる</button>
-              <button className={`monitor-btn ${mode === "battle" ? "active" : "inactive"}`} id="battleBtn" onClick={handleBattle}>滅ぼす</button>
+          </div>
+
+          <div className="board-shell">
+            <div ref={boardRef} className={boardClassName} style={boardStyle} onClick={handleBoardClick}>
+              {orderedStamps.map((stamp) => (
+                <button
+                  key={stamp.id}
+                  type="button"
+                  className={`placed-stamp ${selectedId === stamp.id ? "selected" : ""}`}
+                  style={{
+                    left: `${stamp.x}%`,
+                    top: `${stamp.y}%`,
+                    width: `${stamp.size}px`,
+                    opacity: stamp.opacity,
+                    transform: `translate(-50%, -50%) rotate(${stamp.rotation}deg) scaleX(${stamp.flipX ? -1 : 1})`,
+                    zIndex: stamp.z,
+                  }}
+                  onPointerDown={(event) => handleStartDrag(event, stamp)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setSelectedId(stamp.id);
+                    playSe("select", { volumeMultiplier: 0.45, playbackRate: 1.05 });
+                  }}
+                >
+                  <img src={stamp.img} alt={stamp.name} draggable={false} />
+                </button>
+              ))}
+
+              {!orderedStamps.length ? (
+                <div className="board-empty">
+                  <div className="board-empty-card">
+                    <strong>{armedStamp ? `${armedStamp.name} を押してみよう` : "まずはスタンプを選ぼう"}</strong>
+                    <p>
+                      {armedStamp
+                        ? "このキャンバスをクリックすると、選んだ画像がその位置に置かれます。"
+                        : "背景画像をアップしてから、左のスタンプ棚でスタンプを選ぶこともできます。"}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="board-controls">
+            <div className="board-toolbar">
+              <div className="bg-picker">
+                {BACKGROUNDS.map((background) => (
+                  <button
+                    key={background.id}
+                    type="button"
+                    className={`chip-btn ${backgroundId === background.id ? "active" : ""}`}
+                    onClick={() => applyBackgroundSelection(background.id)}
+                    aria-pressed={backgroundId === background.id}
+                  >
+                    {background.label}
+                  </button>
+                ))}
+                {customBackground?.src ? (
+                  <button
+                    type="button"
+                    className={`chip-btn ${backgroundId === CUSTOM_BACKGROUND_ID ? "active" : ""}`}
+                    onClick={() => applyBackgroundSelection(CUSTOM_BACKGROUND_ID)}
+                    aria-pressed={backgroundId === CUSTOM_BACKGROUND_ID}
+                  >
+                    画像背景
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="toolbar-actions">
+                <button type="button" className="ghost-btn" onClick={handleExport} disabled={isExporting}>
+                  {isExporting ? "書き出し中..." : "PNG保存"}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-btn danger"
+                  onClick={handleClearCanvas}
+                  disabled={!placedStamps.length}
+                >
+                  キャンバス全消去
+                </button>
+              </div>
             </div>
 
-            <div className="monitor-screen">
-              <div className="monitor-bezel">
-                <div className={`screen-inner ${mode === "canvas" ? "canvas-mode" : ""} ${mode === "battle" ? "battle-mode" : ""} ${allyHitPulse && mode === "battle" ? "ally-hit-screen" : ""}`} onDragOver={mode === "canvas" ? handleCanvasDragOver : undefined} onDrop={mode === "canvas" ? handleCanvasDrop : undefined}>
-                  {gameOver.visible && (
-                    <div className="gameover-overlay" onClick={() => {
-                      setGameOver({ visible: false, floor: 1 });
-                      setFloor(1);
-                      setMode("battle");
-                      setEnemyPlaced(false);
-                      setEnemyDying(false);
-                      setEnemyHP(100);
-                      setEnemyMaxHP(100);
-                      setAllyHP(0);
-                      setAllyMaxHP(0);
-                      setHumanGauge(0);
-                      setHumanPoints(0);
-                      setHandCards([]);
-                      setSkillNotes([]);
-                    }}>
-                      <div className="gameover-panel">
-                        <div className="gameover-title">GAME OVER</div>
-                        <div className="gameover-floor">到達人類: {gameOver.floor}人目</div>
-                        <div className="gameover-hint">画面をクリックで戻る</div>
-                      </div>
-                    </div>
-                  )}
-                  {mode === "battle" && allyHitPulse ? <div key={`ally-flash-${allyHitPulse}`} className="ally-flash"></div> : null}
-                  {mode === "normal" && <div className="screen-noise"></div>}
-                  {mode === "canvas" && (
-                  <div className="canvas-count-badge">{canvasCountLabel}</div>
+            <div className="media-rack">
+              <section className="media-card">
+                <div className="media-head">
+                  <div>
+                    <h3>背景画像</h3>
+                    <p className="media-copy">{currentBackgroundNote}</p>
+                  </div>
+                  <span className="media-tag">現在: {currentBackgroundLabel}</span>
+                </div>
+
+                <div className="upload-row">
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={() => {
+                      resumeBgm();
+                      fileInputRef.current?.click();
+                    }}
+                    disabled={isPreparingBackground}
+                  >
+                    {isPreparingBackground ? "背景を準備中..." : "画像をアップロード"}
+                  </button>
+                  {customBackground?.src ? (
+                    <button
+                      type="button"
+                      className="inline-btn"
+                      onClick={() => applyBackgroundSelection(CUSTOM_BACKGROUND_ID)}
+                    >
+                      この画像を使う
+                    </button>
+                  ) : null}
+                  {customBackground?.src ? (
+                    <button
+                      type="button"
+                      className="inline-btn danger-outline"
+                      onClick={handleRemoveCustomBackground}
+                    >
+                      画像背景を削除
+                    </button>
+                  ) : null}
+                </div>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={handleCustomBackgroundUpload}
+                />
+
+                {customBackground?.src ? (
+                  <div className="media-preview">
+                    <img src={customBackground.src} alt={customBackground.name} />
+                  </div>
+                ) : (
+                  <div className="media-placeholder">
+                    端末の画像を読み込むと、ここから背景に切り替えられます。
+                  </div>
                 )}
-                <div className={`result ${mode === "canvas" ? "canvas-mode" : ""}`} id="result" onDragOver={mode === "canvas" ? handleCanvasDragOver : undefined} onDrop={mode === "canvas" ? handleCanvasDrop : undefined}>
-                    {resultNode}
-                  </div>
-                </div>
-                <div className="console">
-                  <div className="lamp red" onMouseEnter={() => setHoverStat(`攻撃力: ${canvasTotals.red}`)} onMouseLeave={() => setHoverStat("")} title={`攻撃力: ${canvasTotals.red}`}></div>
-                  <div className="lamp amber" onMouseEnter={() => setHoverStat(`滅ぼし力: ${canvasTotals.orange}`)} onMouseLeave={() => setHoverStat("")} title={`滅ぼし力: ${canvasTotals.orange}`}></div>
-                  <div className="lamp green" onMouseEnter={() => setHoverStat(`体力: ${canvasTotals.green}`)} onMouseLeave={() => setHoverStat("")} title={`体力: ${canvasTotals.green}`}></div>
-                  <div className="lamp blue" onMouseEnter={() => setHoverStat(`行動力: ${canvasTotals.cyan}`)} onMouseLeave={() => setHoverStat("")} title={`行動力: ${canvasTotals.cyan}`}></div>
-                  <div className="lamp silver" onMouseEnter={() => setHoverStat(`防御力: ${canvasTotals.silver}`)} onMouseLeave={() => setHoverStat("")} title={`防御力: ${canvasTotals.silver}`}></div>
-                  <div className="stat-hover-text">{hoverStat}</div>
-                  <button className="toggle" onClick={() => setBgmOn((v) => !v)}>{bgmOn ? "BGM: ON" : "BGM: OFF"}</button>
-                  <div className="volume">
-                    <label htmlFor="vol">音量</label>
-                    <input
-                      type="range"
-                      id="vol"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      value={bgmVol}
-                      onChange={(e) => setBgmVol(Number(e.target.value))}
-                    />
-                  </div>
-                  <span className="material-info">素材: {materials}</span>
-                  <button className="toggle" onClick={handleResetData}>データ消去</button>
-                  <button className="toggle" onClick={handleUnlockAll}>全キャラ入手</button>
-                </div>
-              </div>
-            </div>
+              </section>
 
-            <div className="dex-monitor">
-              <div className="dex-header">
-                <div className="tab-bar">
-                  <button className={`tab-btn ${activeTab === "catalog" ? "active" : ""}`} onClick={() => setActiveTab("catalog")}>足立図鑑</button>
-                  <button className={`tab-btn ${activeTab === "owned" ? "active" : ""}`} onClick={() => setActiveTab("owned")}>所持カード一覧</button>
-                  <button className={`tab-btn ${activeTab === "ach" ? "active" : ""}`} onClick={() => setActiveTab("ach")}>実績</button>
-                </div>
-                <div className="dex-stats">制作済み <span>{Object.keys(drawnMap).length}</span> / <span>{ITEMS.length}</span></div>
-              </div>
-              <div className={`dex-body ${activeTab === "owned" ? "owned-no-scroll" : ""}`} ref={dexBodyRef}>
-                <div className={`tab-panel ${activeTab === "catalog" ? "active" : ""}`} id="tab-catalog">
-                  <div className="history" style={{ maxHeight: '360px', overflowY: 'auto' }} ref={catalogRef} onWheel={handleDexWheel}>
-                    <div className="list" id="history" ref={historyRef}>{historyList}</div>
+              <section className="media-card">
+                <div className="media-head">
+                  <div>
+                    <h3>サウンド</h3>
+                    <p className="media-copy">`bgm3` をループ再生し、操作ごとに効果音を鳴らします。</p>
                   </div>
+                  <span className={`media-tag sound-${isBgmEnabled ? bgmState : "off"}`}>BGM {bgmStatusLabel}</span>
                 </div>
-                <div className={`tab-panel ${activeTab === "owned" ? "active" : ""}`} id="tab-owned" onWheelCapture={handleDexWheel}>
-                  <div className="owned-selected-name">
-                    <div className="owned-rarity">{ownedMeta?.rarity ? `レアリティ: ${ownedMeta.rarity}` : "レアリティ: 情報なし"}</div>
-                    <div className="owned-title">{ownedTitle || ""}</div>
-                  </div>
-                  <div className="owned-selected-stats">
-                    {(ownedStats || ownedMeta) ? (
-                      <>
-                        {ownedStats ? (
-                          <div className="stat-row">
-                            <div className="stat-led red"><span className="dot"></span><span>{STAT_LABELS.red}: {ownedStats.red}</span></div>
-                            <div className="stat-led orange"><span className="dot"></span><span>{STAT_LABELS.orange}: {ownedStats.orange}</span></div>
-                            <div className="stat-led green"><span className="dot"></span><span>{STAT_LABELS.green}: {ownedStats.green}</span></div>
-                            <div className="stat-led cyan"><span className="dot"></span><span>{STAT_LABELS.cyan}: {ownedStats.cyan}</span></div>
-                            <div className="stat-led silver"><span className="dot"></span><span>{STAT_LABELS.silver}: {ownedStats.silver}</span></div>
-                          </div>
-                        ) : null}
-                        <div className="stat-meta">
-                          {ownedMeta?.skill ? <span className="skill">滅ぼしスキル: {ownedMeta.skill.name}（{ownedMeta.skill.desc}）</span> : <span className="skill">滅ぼしスキル: 情報なし</span>}
-                          {ownedMeta?.passive ? <span className="passive">パッシブ: {ownedMeta.passive.name}（{ownedMeta.passive.desc}）</span> : <span className="passive">パッシブ: 情報なし</span>}
-                        </div>
-                      </>
-                    ) : ""}
-                  </div>
-                  <div className="owned-stack" onWheelCapture={handleDexWheel}>
-                    <div className="stack-area" id="ownedStack" ref={ownedRef} onWheelCapture={handleDexWheel} onMouseMove={handleOwnedMouseMove} onMouseLeave={() => setOwnedHover(null)}>
-                      {ownedStack}
-                    </div>
-                  </div>
+
+                <div className="upload-row">
+                  <button type="button" className="ghost-btn" onClick={handleToggleBgm}>
+                    {isBgmEnabled ? "BGMをオフ" : "BGMをオン"}
+                  </button>
                 </div>
-                <div className={`tab-panel ${activeTab === "ach" ? "active" : ""}`} id="tab-achievements">
-                  <div className="small" style={{ padding: "12px" }}>実績は準備中です。</div>
-                </div>
-              </div>
+
+                <label className="range-control compact">
+                  <div className="range-label">
+                    <span>BGM音量</span>
+                    <strong>{Math.round(bgmVolume * 100)}%</strong>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={bgmVolume}
+                    onChange={(event) => handleBgmVolumeChange(Number(event.target.value))}
+                    onPointerUp={() => playSe("adjust", { volumeMultiplier: 0.35 })}
+                    onKeyUp={() => playSe("adjust", { volumeMultiplier: 0.35 })}
+                  />
+                </label>
+
+                <label className="range-control compact">
+                  <div className="range-label">
+                    <span>効果音音量</span>
+                    <strong>{Math.round(seVolume * 100)}%</strong>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={seVolume}
+                    onChange={(event) => setSeVolume(Number(event.target.value))}
+                    onPointerUp={() => playSe("adjust", { volumeMultiplier: 0.45 })}
+                    onKeyUp={() => playSe("adjust", { volumeMultiplier: 0.45 })}
+                  />
+                </label>
+
+                <p className="audio-note">
+                  ブラウザの仕様で、BGM は最初の操作後に再生開始になる場合があります。
+                </p>
+              </section>
             </div>
           </div>
-        </div>
 
-        <p className="small" style={{ marginTop: 24 }}>
-          これはクライアントだけで動く簡易ガチャです。全て引くと終了します。画像は入手済みカードからダウンロードできます。
-        </p>
-      </div>
+          <p className="small">
+            配置はブラウザに自動保存されます。`Delete` / `Backspace` で削除、`Ctrl + D`
+            で複製できます。
+          </p>
+        </section>
 
-      
-      {confirmExit && (
-        <div className="confirm-overlay">
-          <div className="confirm-panel">
-            <div className="confirm-text">移動すると戦闘が終了します</div>
-            <div className="confirm-buttons">
-              <button className="toggle" onClick={() => { setConfirmExit(false); setPendingNav(null); }}>やめる</button>
-              <button className="toggle" onClick={() => {
-                setConfirmExit(false);
-                if (pendingNav === "draw") handleDrawCore();
-                else if (pendingNav === "assemble") handleAssembleCore();
-                setPendingNav(null);
-              }}>分かった</button>
+        <aside className="panel inspector">
+          <div className="panel-head">
+            <div>
+              <p className="panel-kicker">Adjust</p>
+              <h2>調整パネル</h2>
             </div>
           </div>
-        </div>
-      )}
 
-      {modalImg && (
-        <div className="modal show" onClick={() => setModalImg(null)}>
-          <div className="modal-content">
-            <img src={modalImg} alt="modal" />
-          </div>
-        </div>
-      )}
-    </>
+          {selectedStamp ? (
+            <>
+              <div className="preview-card">
+                <div className="preview-art">
+                  <img
+                    src={selectedStamp.img}
+                    alt={selectedStamp.name}
+                    style={{
+                      transform: `rotate(${selectedStamp.rotation}deg) scaleX(${selectedStamp.flipX ? -1 : 1})`,
+                      opacity: selectedStamp.opacity,
+                    }}
+                  />
+                </div>
+                <div className="preview-name">{selectedStamp.name}</div>
+                <div className="preview-meta">ドラッグで移動しながら、ここで見た目を仕上げられます。</div>
+              </div>
+
+              <label className="range-control">
+                <div className="range-label">
+                  <span>サイズ</span>
+                  <strong>{Math.round(selectedStamp.size)}px</strong>
+                </div>
+                <input
+                  type="range"
+                  min="72"
+                  max="420"
+                  step="1"
+                  value={selectedStamp.size}
+                  onChange={(event) => updateStamp(selectedStamp.id, { size: Number(event.target.value) })}
+                  onPointerUp={handleSliderCommit}
+                  onKeyUp={handleSliderCommit}
+                />
+              </label>
+
+              <label className="range-control">
+                <div className="range-label">
+                  <span>回転</span>
+                  <strong>{Math.round(selectedStamp.rotation)}°</strong>
+                </div>
+                <input
+                  type="range"
+                  min="-180"
+                  max="180"
+                  step="1"
+                  value={selectedStamp.rotation}
+                  onChange={(event) =>
+                    updateStamp(selectedStamp.id, { rotation: Number(event.target.value) })
+                  }
+                  onPointerUp={handleSliderCommit}
+                  onKeyUp={handleSliderCommit}
+                />
+              </label>
+
+              <label className="range-control">
+                <div className="range-label">
+                  <span>透明度</span>
+                  <strong>{Math.round(selectedStamp.opacity * 100)}%</strong>
+                </div>
+                <input
+                  type="range"
+                  min="0.25"
+                  max="1"
+                  step="0.01"
+                  value={selectedStamp.opacity}
+                  onChange={(event) =>
+                    updateStamp(selectedStamp.id, { opacity: Number(event.target.value) })
+                  }
+                  onPointerUp={handleSliderCommit}
+                  onKeyUp={handleSliderCommit}
+                />
+              </label>
+
+              <div className="action-grid">
+                <button
+                  type="button"
+                  className="action-btn"
+                  onClick={() => {
+                    updateStamp(selectedStamp.id, { flipX: !selectedStamp.flipX });
+                    playSe("adjust", { volumeMultiplier: 0.65 });
+                  }}
+                >
+                  左右反転
+                </button>
+                <button
+                  type="button"
+                  className="action-btn"
+                  onClick={() => duplicateStampById(selectedStamp.id)}
+                >
+                  複製
+                </button>
+                <button
+                  type="button"
+                  className="action-btn"
+                  onClick={() => {
+                    bringToFront(selectedStamp.id);
+                    playSe("adjust", { volumeMultiplier: 0.55, playbackRate: 1.08 });
+                  }}
+                >
+                  前面へ
+                </button>
+                <button
+                  type="button"
+                  className="action-btn"
+                  onClick={() => {
+                    sendToBack(selectedStamp.id);
+                    playSe("adjust", { volumeMultiplier: 0.55, playbackRate: 0.94 });
+                  }}
+                >
+                  背面へ
+                </button>
+                <button
+                  type="button"
+                  className="action-btn danger"
+                  onClick={() => removeStampById(selectedStamp.id)}
+                >
+                  削除
+                </button>
+                <button type="button" className="inline-btn" onClick={() => setSelectedId(null)}>
+                  選択解除
+                </button>
+              </div>
+            </>
+          ) : armedStamp ? (
+            <div className="empty-inspector">
+              <strong>{armedStamp.name} を選択中です。</strong>
+              キャンバスをクリックすると、この画像をスタンプとして押せます。別の画像を押したいときは左の棚から選び直してください。
+              <div className="armed-preview">
+                <img src={armedStamp.img} alt={armedStamp.name} />
+              </div>
+              <button
+                type="button"
+                className="inline-btn"
+                onClick={() => {
+                  setArmedStampId(null);
+                  playSe("select", { volumeMultiplier: 0.45, playbackRate: 0.96 });
+                }}
+              >
+                スタンプ選択を解除
+              </button>
+            </div>
+          ) : (
+            <div className="empty-inspector">
+              <strong>ここで仕上げます。</strong>
+              配置したスタンプをクリックすると、サイズ変更、回転、透明度、重なり順、複製、削除ができます。
+            </div>
+          )}
+        </aside>
+      </main>
+
+    </div>
   );
 }
-export default App;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
