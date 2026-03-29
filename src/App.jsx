@@ -97,6 +97,9 @@ const CUSTOM_BACKGROUND_ID = "custom";
 const BGM_SRC = "/bgm/bgm3.mp3";
 const DEFAULT_BGM_VOLUME = 0.42;
 const DEFAULT_SE_VOLUME = 0.68;
+const COMPACT_LANDSCAPE_QUERY =
+  "(hover: none) and (pointer: coarse) and (orientation: landscape) and (max-width: 960px) and (max-height: 600px)";
+const COMPACT_LANDSCAPE_STAMP_SCALE = 0.52;
 
 const BACKGROUNDS = [
   { id: "plain", label: "白紙", note: "まっしろな背景" },
@@ -408,6 +411,31 @@ const renderBackgroundToContext = async (ctx, width, height, backgroundId, custo
   paintPresetBackground(ctx, width, height, backgroundId);
 };
 
+const useMediaQuery = (query) => {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia(query).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+
+    const mediaQuery = window.matchMedia(query);
+    const update = () => setMatches(mediaQuery.matches);
+
+    update();
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", update);
+      return () => mediaQuery.removeEventListener("change", update);
+    }
+
+    mediaQuery.addListener(update);
+    return () => mediaQuery.removeListener(update);
+  }, [query]);
+
+  return matches;
+};
+
 const downloadBlob = (blob, filename) => {
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -427,6 +455,7 @@ export default function App() {
   const bgmEnabledRef = useRef(true);
   const bgmVolumeRef = useRef(DEFAULT_BGM_VOLUME);
   const lastBgmVolumeRef = useRef(DEFAULT_BGM_VOLUME);
+  const isCompactLandscape = useMediaQuery(COMPACT_LANDSCAPE_QUERY);
 
   const [placedStamps, setPlacedStamps] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -663,8 +692,9 @@ export default function App() {
         : bgmState === "error"
           ? "読み込み失敗"
           : bgmState === "waiting"
-            ? "再生待機"
-            : "準備中";
+        ? "再生待機"
+        : "準備中";
+  const stampRenderScale = isCompactLandscape ? COMPACT_LANDSCAPE_STAMP_SCALE : 1;
 
   const boardClassName =
     backgroundId === CUSTOM_BACKGROUND_ID && customBackground?.src
@@ -897,7 +927,7 @@ export default function App() {
 
         const x = (stamp.x / 100) * EXPORT_WIDTH;
         const y = (stamp.y / 100) * EXPORT_HEIGHT;
-        const drawWidth = stamp.size * scale;
+        const drawWidth = stamp.size * scale * stampRenderScale;
         const naturalWidth = image.naturalWidth || image.width || 1;
         const naturalHeight = image.naturalHeight || image.height || 1;
         const drawHeight = drawWidth * (naturalHeight / naturalWidth);
@@ -1043,6 +1073,7 @@ export default function App() {
                   className={`placed-stamp ${selectedId === stamp.id ? "selected" : ""}`}
                   style={{
                     "--stamp-size": `${stamp.size}px`,
+                    "--stamp-scale": stampRenderScale,
                     left: `${stamp.x}%`,
                     top: `${stamp.y}%`,
                     opacity: stamp.opacity,
