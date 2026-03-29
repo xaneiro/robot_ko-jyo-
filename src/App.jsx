@@ -1042,9 +1042,9 @@ export default function App() {
                   type="button"
                   className={`placed-stamp ${selectedId === stamp.id ? "selected" : ""}`}
                   style={{
+                    "--stamp-size": `${stamp.size}px`,
                     left: `${stamp.x}%`,
                     top: `${stamp.y}%`,
-                    width: `${stamp.size}px`,
                     opacity: stamp.opacity,
                     transform: `translate(-50%, -50%) rotate(${stamp.rotation}deg) scaleX(${stamp.flipX ? -1 : 1})`,
                     zIndex: stamp.z,
