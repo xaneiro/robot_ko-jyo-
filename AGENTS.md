@@ -34,10 +34,12 @@
 4) GitHub Pages などサブフォルダ配下に置く場合は、`vite.config.js` に `base` 設定が必要になることがある
 
 ## GitHub作業ルール（複数チャット対応）
-- 編集前に必ず `npm run codex:start -- <作業名>` を実行する。`main` にいる場合は自動で `codex/<日時>-<作業名>` ブランチが作られる。
+- 編集前に必ず `npm run codex:start -- <作業名>` を実行する。
+- Codexチャット内では、上のコマンドがチャット専用の worktree と `codex/thread-...` ブランチを自動作成する。以後の編集・テスト・commit は表示された `Worktree:` のフォルダで行う。
+- CodexチャットIDがない通常のターミナルでは、同じコマンドが現在のフォルダに `codex/<日時>-<作業名>` ブランチを作る。
 - `main` には直接コミット・pushしない。
 - 1チャットで扱う作業は1ブランチにまとめ、別チャットの作業とはブランチを分ける。
-- 同じローカルフォルダを複数チャットで同時に編集しない。必要なら別フォルダにcloneする。
+- 複数チャットでは、それぞれ自動作成された別 worktree を使う。同じ worktree を複数チャットで同時に編集しない。
 - 作業が終わったら Pull request を作り、`CI Build` が成功してから `main` にmergeする。
 - 競合が出たら Pull request 画面で対象ファイルを確認し、どちらの変更を残すか決めてから解消する。
 - `.githooks` で `main` への直接 commit / push を止める。hook が未設定なら `git config core.hooksPath .githooks` を実行する。
@@ -51,7 +53,7 @@ npm run codex:start -- short-task-name
 作業後のpush:
 
 ```bash
-git push -u origin codex/short-task-name
+git push -u origin "$(git branch --show-current)"
 ```
 
 ## 動きの仕様メモ
