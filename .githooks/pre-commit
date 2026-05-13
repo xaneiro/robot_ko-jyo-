@@ -7,7 +7,7 @@ if [[ "$branch" == "main" || "$branch" == "master" ]]; then
 main への直接 commit は禁止です。
 
 先に作業ブランチを自動作成してください:
-  scripts/codex-start-branch.sh 作業名
+  npm run codex:start -- 作業名
 
 どうしても必要な場合だけ:
   ALLOW_MAIN_COMMIT=1 git commit ...

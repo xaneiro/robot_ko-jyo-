@@ -42,22 +42,24 @@ npm run preview
 
 - `main` には直接作業しません。
 - 1つのチャットにつき、1つの作業ブランチを使います。
+- Codex に作業を頼む場合、Codex は編集前にチャット専用の作業フォルダとブランチを自動作成します。
 - 1つの作業は、1つの Pull request として扱います。
-- 複数チャットで同じローカルフォルダを同時編集しません。
+- 複数チャットで同じ作業フォルダを同時編集しません。
 - Pull request の `CI Build` が成功してから `main` に merge します。
 - 競合が出た場合は GitHub の Pull request 画面で差分を確認し、片方の変更を取り込んでから merge します。
-- Codex に作業を頼む場合、Codex は編集前に自動で作業ブランチを作ります。
 
-自動ブランチ作成:
+自動作業フォルダ・ブランチ作成:
 
 ```bash
 npm run codex:start -- short-task-name
 ```
 
+Codexチャット内では、コマンド出力の `Worktree:` に表示されたフォルダで作業します。通常のターミナルでは、現在のフォルダに作業ブランチを作ります。
+
 作業後:
 
 ```bash
-git push -u origin codex/short-task-name
+git push -u origin "$(git branch --show-current)"
 ```
 
 その後、GitHub で Pull request を作成します。
