@@ -38,6 +38,30 @@ npm run preview
 - `main` に反映された変更は GitHub Actions でビルドされ、GitHub Pages にデプロイされます。
 - Issue と Pull request は `.github` のテンプレートに沿って記録します。
 
+## 複数チャットで並行作業する時のルール
+
+- `main` には直接作業しません。
+- 1つのチャットにつき、1つの作業ブランチを使います。
+- 1つの作業は、1つの Pull request として扱います。
+- 複数チャットで同じローカルフォルダを同時編集しません。
+- Pull request の `CI Build` が成功してから `main` に merge します。
+- 競合が出た場合は GitHub の Pull request 画面で差分を確認し、片方の変更を取り込んでから merge します。
+
+作業開始例:
+
+```bash
+git fetch origin
+git switch -c codex/short-task-name origin/main
+```
+
+作業後:
+
+```bash
+git push -u origin codex/short-task-name
+```
+
+その後、GitHub で Pull request を作成します。
+
 ## 素材の扱い
 
 このリポジトリには画像・音声素材が含まれます。ソースコードを含め、素材の再利用・再配布・改変利用は許可なく行わないでください。
