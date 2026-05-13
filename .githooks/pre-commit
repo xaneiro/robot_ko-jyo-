@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+branch="$(git branch --show-current)"
+if [[ "$branch" == "main" || "$branch" == "master" ]]; then
+  cat >&2 <<'MSG'
+main への直接 commit は禁止です。
+
+先に作業ブランチを自動作成してください:
+  scripts/codex-start-branch.sh 作業名
+
+どうしても必要な場合だけ:
+  ALLOW_MAIN_COMMIT=1 git commit ...
+MSG
+  if [[ "${ALLOW_MAIN_COMMIT:-}" != "1" ]]; then
+    exit 1
+  fi
+fi

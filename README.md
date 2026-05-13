@@ -46,12 +46,12 @@ npm run preview
 - 複数チャットで同じローカルフォルダを同時編集しません。
 - Pull request の `CI Build` が成功してから `main` に merge します。
 - 競合が出た場合は GitHub の Pull request 画面で差分を確認し、片方の変更を取り込んでから merge します。
+- Codex に作業を頼む場合、Codex は編集前に自動で作業ブランチを作ります。
 
-作業開始例:
+自動ブランチ作成:
 
 ```bash
-git fetch origin
-git switch -c codex/short-task-name origin/main
+npm run codex:start -- short-task-name
 ```
 
 作業後:
@@ -61,6 +61,12 @@ git push -u origin codex/short-task-name
 ```
 
 その後、GitHub で Pull request を作成します。
+
+ローカルでは `.githooks` により、`main` への直接 commit / push を止めます。初回だけ以下を実行してください。
+
+```bash
+git config core.hooksPath .githooks
+```
 
 ## 素材の扱い
 
