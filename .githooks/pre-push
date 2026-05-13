@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+protected_ref='refs/heads/main'
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ "$remote_ref" == "$protected_ref" ]]; then
+    cat >&2 <<'MSG'
+main への直接 push は禁止です。
+
+作業ブランチを push して Pull request を作ってください:
+  git push -u origin 現在のブランチ名
+
+どうしても必要な場合だけ:
+  ALLOW_MAIN_PUSH=1 git push origin main
+MSG
+    if [[ "${ALLOW_MAIN_PUSH:-}" != "1" ]]; then
+      exit 1
+    fi
+  fi
+done
