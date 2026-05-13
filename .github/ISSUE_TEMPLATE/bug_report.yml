@@ -1,0 +1,36 @@
+name: バグ報告
+description: 動作不具合や表示崩れを報告する
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 内容
+      description: 何が起きているかを簡潔に書いてください。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      description: どの操作で起きるかを書いてください。
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待する動作
+      description: 本来どう動いてほしいかを書いてください。
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 環境
+      description: ブラウザ、端末、OS など分かる範囲で書いてください。

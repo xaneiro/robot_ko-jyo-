@@ -1,0 +1,23 @@
+name: 作業メモ
+description: 実装・整理・調査などの作業を記録する
+title: "[Task]: "
+labels:
+  - question
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: やること
+      description: 作業内容を具体的に書いてください。
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: 完了条件
+      description: 何ができたら完了かを書いてください。
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true

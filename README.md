@@ -1,0 +1,50 @@
+# ロボットコージョー
+
+React + Vite で作られた、ブラウザで動くガチャ・図鑑アプリです。画像と音声を `public/` から読み込み、入手状況やキャンバス配置はブラウザの `localStorage` を使います。
+
+公開ページ:
+https://xaneiro.github.io/robot_ko-jyo-/
+
+## 開発
+
+```bash
+npm ci
+npm run dev
+```
+
+開発サーバーの URL が表示されたら、ブラウザで開いて確認します。
+
+## ビルド
+
+```bash
+npm run build
+npm run preview
+```
+
+`dist/` はビルド結果です。手で編集せず、GitHub Actions で生成して GitHub Pages に公開します。
+
+## 主な構成
+
+- `src/App.jsx`: 画面と動きの中心。ガチャ対象の画像一覧もここで管理します。
+- `src/styles.css`: レイアウト、色、アニメーションなどの見た目。
+- `public/images/`: ガチャや図鑑で使う画像。
+- `public/bgm/`: BGM。
+- `public/se/`: 効果音。
+- `AGENTS.md`: Codex や AI に作業を頼む時の補足ガイド。
+
+## GitHub 運用
+
+- Pull request では CI が `npm ci` と `npm run build` を実行します。
+- `main` に反映された変更は GitHub Actions でビルドされ、GitHub Pages にデプロイされます。
+- Issue と Pull request は `.github` のテンプレートに沿って記録します。
+
+## 素材の扱い
+
+このリポジトリには画像・音声素材が含まれます。ソースコードを含め、素材の再利用・再配布・改変利用は許可なく行わないでください。
+
+## Codex への依頼例
+
+- 「ガチャに `public/images/新しい画像.png` を追加して」
+- 「`src/App.jsx` のタイトル文言を変更して」
+- 「`npm run build` が通るように修正して」
+- 「Issue の内容を実装計画に整理して」
