@@ -33,6 +33,27 @@
 3) サーバーにアップするのは `dist/` の中身だけ（`src/` や `node_modules/` は不要）  
 4) GitHub Pages などサブフォルダ配下に置く場合は、`vite.config.js` に `base` 設定が必要になることがある
 
+## GitHub作業ルール（複数チャット対応）
+- `main` には直接コミット・pushしない。
+- 作業を始める時は、必ず `origin/main` から `codex/<作業名>` ブランチを作る。
+- 1チャットで扱う作業は1ブランチにまとめ、別チャットの作業とはブランチを分ける。
+- 同じローカルフォルダを複数チャットで同時に編集しない。必要なら別フォルダにcloneする。
+- 作業が終わったら Pull request を作り、`CI Build` が成功してから `main` にmergeする。
+- 競合が出たら Pull request 画面で対象ファイルを確認し、どちらの変更を残すか決めてから解消する。
+
+作業開始コマンド:
+
+```bash
+git fetch origin
+git switch -c codex/short-task-name origin/main
+```
+
+作業後のpush:
+
+```bash
+git push -u origin codex/short-task-name
+```
+
 ## 動きの仕様メモ
 - 起動直後の `useEffect` で `localStorage` をクリアしているため、ページをリロードすると入手状況やキャンバス配置がリセットされる。残したい場合はこの `useEffect` を削除/コメントアウトする。
 - 「組み立てる」モード: 所持カード一覧からドラッグでキャンバスに貼り付け。選択中に `Delete/Backspace` で削除。
