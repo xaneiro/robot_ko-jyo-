@@ -93,7 +93,8 @@ if [[ -n "${CODEX_THREAD_ID:-}" && "${CODEX_USE_WORKTREE:-1}" != "0" ]]; then
     if git show-ref --verify --quiet "refs/heads/$new_branch"; then
       git worktree add "$worktree_path" "$new_branch"
     else
-      git worktree add -b "$new_branch" "$worktree_path" "origin/$main_branch"
+      git branch --no-track "$new_branch" "origin/$main_branch"
+      git worktree add "$worktree_path" "$new_branch"
     fi
   fi
 
