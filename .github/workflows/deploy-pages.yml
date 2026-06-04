@@ -37,7 +37,7 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: VITE_DEPLOY_TARGET=github-pages npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
