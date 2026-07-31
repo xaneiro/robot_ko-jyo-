@@ -27,5 +27,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build for Cloudflare Pages
         run: npm run build
+
+      - name: Verify Cloudflare Pages asset paths
+        run: npm run verify:build-paths -- cloudflare
+
+      - name: Build for GitHub Pages
+        run: VITE_DEPLOY_TARGET=github-pages npm run build
+
+      - name: Verify GitHub Pages asset paths
+        run: npm run verify:build-paths -- github-pages
