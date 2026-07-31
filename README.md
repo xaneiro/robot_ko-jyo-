@@ -5,6 +5,9 @@ React + Vite で作られた、ブラウザで動くガチャ・図鑑アプリ�
 公開ページ:
 https://xaneiro.github.io/robot_ko-jyo-/
 
+Cloudflare Pages に出す場合は、通常の `npm run build` でドメイン直下用にビルドします。
+GitHub Pages は GitHub Actions 側で `VITE_DEPLOY_TARGET=github-pages` を付けて、`/robot_ko-jyo-/` 配下用にビルドします。
+
 ## 開発
 
 ```bash
@@ -21,7 +24,7 @@ npm run build
 npm run preview
 ```
 
-`dist/` はビルド結果です。手で編集せず、GitHub Actions で生成して GitHub Pages に公開します。
+`dist/` はビルド結果です。手で編集せず、公開先に合わせてビルドし直します。
 
 ## 主な構成
 
